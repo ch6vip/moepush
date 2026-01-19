@@ -1,26 +1,28 @@
 name: Deploy
+
 on:
   push:
+    branches:
+      - main
     tags:
-      - 'v*' # 匹配所有以 v 开头的 tag，如 v1.0.0
-  workflow_dispatch: # 允许手动触发工作流
+      - "v*"
+  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    name: Deploy
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: pnpm/action-setup@v2
         with:
           version: 9
-      
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'pnpm'
-          
+          cache: pnpm
+
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
