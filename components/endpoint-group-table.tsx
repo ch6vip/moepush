@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Loader2, Trash, Eye, Power, Send } from "lucide-react"
+import { Loader2, Trash, Eye, Power, Send, Pencil } from "lucide-react"
 
 import {
   Table,
@@ -35,13 +35,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { MoreHorizontal } from "lucide-react"
+import { EndpointGroupDialog } from "./endpoint-group-dialog"
+import { Endpoint } from "@/lib/db/schema/endpoints"
 
 interface EndpointGroupTableProps {
   groups: EndpointGroupWithEndpoints[]
+  availableEndpoints: Endpoint[]
   onGroupsUpdate: () => void
 }
 
-export function EndpointGroupTable({ groups, onGroupsUpdate }: EndpointGroupTableProps) {
+export function EndpointGroupTable({ groups, availableEndpoints, onGroupsUpdate }: EndpointGroupTableProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [groupToDelete, setGroupToDelete] = useState<EndpointGroupWithEndpoints | null>(null)
@@ -159,6 +162,10 @@ export function EndpointGroupTable({ groups, onGroupsUpdate }: EndpointGroupTabl
             className="h-9"
           />
         </div>
+        <EndpointGroupDialog 
+          availableEndpoints={availableEndpoints}
+          onSuccess={onGroupsUpdate}
+        />
       </div>
 
       <div className="rounded-md border">
@@ -217,6 +224,13 @@ export function EndpointGroupTable({ groups, onGroupsUpdate }: EndpointGroupTabl
                           )}
                           测试推送
                         </DropdownMenuItem>
+                        <EndpointGroupDialog 
+                          mode="edit"
+                          group={group}
+                          availableEndpoints={availableEndpoints}
+                          onSuccess={onGroupsUpdate}
+                          icon={<Pencil className="h-4 w-4 mr-2" />}
+                        />
                         <DropdownMenuItem 
                           onClick={() => handleToggleStatus(group.id)}
                           disabled={isLoading === group.id}

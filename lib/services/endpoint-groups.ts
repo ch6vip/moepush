@@ -60,6 +60,32 @@ export async function createEndpointGroup(data: CreateEndpointGroupData): Promis
   return response.json() as Promise<{ id: string }>
 }
 
+export interface UpdateEndpointGroupData {
+  name: string
+  endpointIds: string[]
+}
+
+export async function updateEndpointGroup(id: string, data: UpdateEndpointGroupData): Promise<{ success: boolean }> {
+  if (!data.endpointIds.length) {
+    throw new Error('请至少选择一个接口')
+  }
+
+  const response = await fetch(`${API_URL}/${id}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  })
+
+  if (!response.ok) {
+    const error = await response.json() as { error: string }
+    throw new Error(error.error || '更新接口组失败')
+  }
+
+  return response.json() as Promise<{ success: boolean }>
+}
+
 export async function deleteEndpointGroup(id: string): Promise<{ success: boolean }> {
   const response = await fetch(`${API_URL}/${id}`, {
     method: 'DELETE',

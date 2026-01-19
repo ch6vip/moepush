@@ -110,6 +110,7 @@ export function EndpointsTabs({ initialEndpoints, channels }: { initialEndpoints
             ) : (
               <EndpointGroupTable 
                 groups={groups}
+                availableEndpoints={endpoints}
                 onGroupsUpdate={loadGroups}
               />
             )}
