@@ -38,6 +38,7 @@ import { Channel, ChannelType } from "@/lib/channels"
 import { CHANNEL_TEMPLATES } from "@/lib/channels"
 import { TemplateFields } from "@/components/template-fields"
 import { createEndpoint, updateEndpoint } from "@/lib/services/endpoints"
+import { useRouter } from "next/navigation"
 
 interface EndpointDialogProps {
   mode?: "create" | "edit"
@@ -78,6 +79,7 @@ export function EndpointDialog({
     getInitialTemplateType(endpoint)
   )
   const { toast } = useToast()
+  const router = useRouter()
 
   const form = useForm<NewEndpoint>({
     resolver: zodResolver(insertEndpointSchema),
@@ -182,11 +184,29 @@ export function EndpointDialog({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {channels.map((channel) => (
-                            <SelectItem key={channel.id} value={channel.id}>
-                              {channel.name}
-                            </SelectItem>
-                          ))}
+                          {channels.length > 0 ? (
+                            <>
+                              {channels.map((channel) => (
+                                <SelectItem key={channel.id} value={channel.id}>
+                                  {channel.name}
+                                </SelectItem>
+                              ))}
+                            </>
+                          ) : (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="w-full justify-start text-blue-600 hover:text-blue-700"
+                              onClick={() => {
+                                setOpen(false)
+                                router.push("/moe/channels")
+                              }}
+                            >
+                              <Plus className="h-4 w-4 mr-2" />
+                              添加新渠道
+                            </Button>
+                          )}
                         </SelectContent>
                       </Select>
                       <FormMessage />
