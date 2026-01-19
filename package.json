@@ -9,7 +9,8 @@
     "lint": "next lint",
     "pages:build": "pnpm next-on-pages",
     "preview": "pnpm pages:build && wrangler pages dev",
-    "deploy": "pnpm pages:build && wrangler pages deploy --branch main",
+    "deploy": "pnpm pages:build && wrangler pages deploy --branch preview",
+    "deploy:prod": "pnpm pages:build && wrangler pages deploy --branch main",
     "db:migrate-local": "pnpm drizzle-kit generate && pnpm wrangler d1 migrations apply moepush --local",
     "tunnel": "pnpm dlx cloudflared tunnel --url http://localhost:3000"
   },

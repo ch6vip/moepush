@@ -7,6 +7,10 @@ const cloudflareApiToken = process.env.CLOUDFLARE_API_TOKEN;
 const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
 const projectName = process.env.PROJECT_NAME || 'moepush';
 
+const pagesEnv = process.env.CF_PAGES_ENV || 'preview'; // preview | production
+const pagesBranch =
+    process.env.CF_PAGES_BRANCH || (pagesEnv === 'production' ? 'main' : 'preview');
+
 const setupWranglerConfig = () => {
     const wranglerExamplePath = path.resolve('wrangler.example.json');
     const wranglerConfigPath = path.resolve('wrangler.json');
@@ -35,7 +39,7 @@ const checkAndCreateDatabase = () => {
 
     if (!dbId) {
         console.log(`Creating new D1 database: ${dbName}`);
-        execSync(`wrangler d1 create "${dbName}"`);
+        execSync(`wrangler d1 create "${dbName}"`, { stdio: 'inherit' });
         dbId = getDatabaseId();
         if (!dbId) {
             throw new Error('Failed to create database');
@@ -51,7 +55,7 @@ const checkAndCreateDatabase = () => {
 };
 
 const applyMigrations = () => {
-    execSync(`wrangler d1 migrations apply "${dbName}" --remote`);
+    execSync(`wrangler d1 migrations apply "${dbName}" --remote`, { stdio: 'inherit' });
 };
 
 const createPagesSecret = () => {
@@ -63,12 +67,13 @@ const createPagesSecret = () => {
         `DISABLE_REGISTER=${process.env.DISABLE_REGISTER}`,
     ];
     fs.writeFileSync(envFilePath, envVariables.join('\n'));
-    execSync(`wrangler pages secret bulk .env`);
+    execSync(`wrangler pages secret bulk .env --project-name "${projectName}" --env "${pagesEnv}"`, { stdio: 'inherit' });
 };
 
 const deployPages = () => {
     console.log('Deploying to Cloudflare Pages...');
-    execSync('pnpm run deploy');
+    execSync('pnpm pages:build', { stdio: 'inherit' });
+    execSync(`wrangler pages deploy --project-name "${projectName}" --branch "${pagesBranch}"`, { stdio: 'inherit' });
     console.log('Deployment completed successfully');
 };
 
