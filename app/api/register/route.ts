@@ -4,6 +4,7 @@ import { users } from "@/lib/db/schema";
 import { authSchema } from "@/lib/validation";
 import { eq } from "drizzle-orm";
 import { hashPassword } from "@/lib/utils";
+import { ZodError } from "zod";
 
 export const runtime = "edge";
 
@@ -43,10 +44,14 @@ export async function POST(request: Request) {
       { status: 201 }
     );
   } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json(
+        { message: error.issues[0]?.message ?? "参数错误" },
+        { status: 400 }
+      );
+    }
+
     console.error(error);
-    return NextResponse.json(
-      { message: "注册失败" },
-      { status: 500 }
-    );
+    return NextResponse.json({ message: "注册失败" }, { status: 500 });
   }
 } 

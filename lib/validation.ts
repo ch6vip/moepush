@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+export const PASSWORD_MIN_LENGTH = 8
+
 export const authSchema = z.object({
   username: z.string()
     .min(1, "用户名不能为空")
@@ -7,7 +9,7 @@ export const authSchema = z.object({
     .regex(/^[a-zA-Z0-9_-]+$/, "用户名只能包含字母、数字、下划线和横杠")
     .refine(val => !val.includes('@'), "用户名不能是邮箱格式"),
   password: z.string()
-    .min(8, "密码长度必须大于等于8位")
+    .min(PASSWORD_MIN_LENGTH, "密码长度必须大于等于8位")
 })
 
 export type AuthSchema = z.infer<typeof authSchema>

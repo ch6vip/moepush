@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Icons } from "@/components/icons";
 import { useToast } from "@/components/ui/use-toast";
 import { signIn } from "next-auth/react";
+import { PASSWORD_MIN_LENGTH } from "@/lib/validation";
 
 export function RegisterForm(props: React.HTMLAttributes<HTMLDivElement>) {
   const { toast } = useToast();
@@ -112,7 +113,7 @@ export function RegisterForm(props: React.HTMLAttributes<HTMLDivElement>) {
               autoComplete="new-password"
               disabled={isLoading}
               required
-              minLength={6}
+              minLength={PASSWORD_MIN_LENGTH}
             />
           </div>
           <div className="grid gap-1">
@@ -124,7 +125,7 @@ export function RegisterForm(props: React.HTMLAttributes<HTMLDivElement>) {
               autoComplete="new-password"
               disabled={isLoading}
               required
-              minLength={6}
+              minLength={PASSWORD_MIN_LENGTH}
             />
           </div>
           <Button disabled={isLoading}>
