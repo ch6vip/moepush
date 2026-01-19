@@ -10,6 +10,7 @@ const projectName = process.env.PROJECT_NAME || 'moepush';
 const pagesEnv = process.env.CF_PAGES_ENV || 'preview'; // preview | production
 const pagesBranch =
     process.env.CF_PAGES_BRANCH || (pagesEnv === 'production' ? 'main' : 'preview');
+const pagesOutputDir = path.resolve('.vercel/output/static');
 
 const setupWranglerConfig = () => {
     const wranglerExamplePath = path.resolve('wrangler.example.json');
@@ -26,7 +27,7 @@ const checkAndCreateDatabase = () => {
     let dbId;
 
     const getDatabaseId = () => {
-        const dbList = execSync('wrangler d1 list --json').toString();
+        const dbList = execSync('pnpm wrangler d1 list --json').toString();
         const databases = JSON.parse(dbList);
         return databases.find((db: any) => db.name === dbName)?.uuid;
     }
@@ -39,7 +40,7 @@ const checkAndCreateDatabase = () => {
 
     if (!dbId) {
         console.log(`Creating new D1 database: ${dbName}`);
-        execSync(`wrangler d1 create "${dbName}"`, { stdio: 'inherit' });
+        execSync(`pnpm wrangler d1 create "${dbName}"`, { stdio: 'inherit' });
         dbId = getDatabaseId();
         if (!dbId) {
             throw new Error('Failed to create database');
@@ -55,7 +56,7 @@ const checkAndCreateDatabase = () => {
 };
 
 const applyMigrations = () => {
-    execSync(`wrangler d1 migrations apply "${dbName}" --remote`, { stdio: 'inherit' });
+    execSync(`pnpm wrangler d1 migrations apply "${dbName}" --remote`, { stdio: 'inherit' });
 };
 
 const createPagesSecret = () => {
@@ -67,13 +68,16 @@ const createPagesSecret = () => {
         `DISABLE_REGISTER=${process.env.DISABLE_REGISTER}`,
     ];
     fs.writeFileSync(envFilePath, envVariables.join('\n'));
-    execSync(`wrangler pages secret bulk .env --project-name "${projectName}" --env "${pagesEnv}"`, { stdio: 'inherit' });
+    execSync(`pnpm wrangler pages secret bulk .env --project-name "${projectName}" --env "${pagesEnv}"`, { stdio: 'inherit' });
 };
 
 const deployPages = () => {
     console.log('Deploying to Cloudflare Pages...');
     execSync('pnpm pages:build', { stdio: 'inherit' });
-    execSync(`wrangler pages deploy --project-name "${projectName}" --branch "${pagesBranch}"`, { stdio: 'inherit' });
+    execSync(
+        `pnpm wrangler pages deploy "${pagesOutputDir}" --project-name "${projectName}" --branch "${pagesBranch}" --no-bundle`,
+        { stdio: 'inherit' }
+    );
     console.log('Deployment completed successfully');
 };
 
