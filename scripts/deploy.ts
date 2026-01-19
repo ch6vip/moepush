@@ -10,6 +10,9 @@ const projectName = process.env.PROJECT_NAME || 'moepush';
 const pagesEnv = process.env.CF_PAGES_ENV || 'preview'; // preview | production
 const pagesBranch =
     process.env.CF_PAGES_BRANCH || (pagesEnv === 'production' ? 'main' : 'preview');
+// Cloudflare treats deployments to `production_branch` as Production; everything else is Preview.
+// If you don't want Production at all, set this to an unused branch name.
+const pagesProductionBranch = process.env.CF_PAGES_PRODUCTION_BRANCH || 'production';
 const pagesOutputDir = path.resolve('.vercel/output/static');
 
 const setupWranglerConfig = () => {
@@ -95,11 +98,47 @@ const checkProjectExists = async () => {
             console.log(`Project ${projectName} does not exist. Creating...`);
             await createProject();
         } else {
-            console.log(`Project ${projectName} already exists.`);
+            const data = await response.json() as { success: boolean, result?: { production_branch?: string } };
+            if (!data.success) {
+                throw new Error('Failed to read project info');
+            }
+
+            const currentProductionBranch = data.result?.production_branch;
+            if (currentProductionBranch && currentProductionBranch !== pagesProductionBranch) {
+                console.log(`Updating Pages production_branch: ${currentProductionBranch} -> ${pagesProductionBranch}`);
+                await updateProject();
+            } else {
+                console.log(`Project ${projectName} already exists.`);
+            }
         }
     } catch (error) {
         console.error('Error checking project existence:', error);
         throw error;
+    }
+};
+
+const updateProject = async () => {
+    const response = await fetch(
+        `https://api.cloudflare.com/client/v4/accounts/${accountId}/pages/projects/${projectName}`,
+        {
+            method: 'PATCH',
+            headers: {
+                Authorization: `Bearer ${cloudflareApiToken}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                production_branch: pagesProductionBranch,
+            }),
+        }
+    );
+
+    if (!response.ok) {
+        throw new Error(`Error updating project: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json() as { success: boolean };
+    if (!data.success) {
+        throw new Error('Failed to update project');
     }
 };
 
@@ -113,7 +152,7 @@ const createProject = async () => {
             },
             body: JSON.stringify({
                 name: projectName,
-                production_branch: 'main',
+                production_branch: pagesProductionBranch,
             }),
         });
 

@@ -31,6 +31,7 @@ jobs:
         env:
           CF_PAGES_ENV: preview
           CF_PAGES_BRANCH: preview
+          CF_PAGES_PRODUCTION_BRANCH: production
           DISABLE_REGISTER: ${{ secrets.DISABLE_REGISTER }}
           AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
           AUTH_GITHUB_ID: ${{ secrets.AUTH_GITHUB_ID }}
