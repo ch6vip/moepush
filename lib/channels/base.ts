@@ -28,6 +28,7 @@ export interface SendMessageOptions {
   agentId?: string
   botToken?: string
   chatId?: string
+  timeoutMs?: number
   [key: string]: any
 }
 

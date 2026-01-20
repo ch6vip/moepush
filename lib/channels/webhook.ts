@@ -1,4 +1,5 @@
 import { BaseChannel, ChannelConfig, SendMessageOptions } from "./base"
+import { fetchWithTimeout } from "../utils"
 
 interface WebhookMessage {
   method?: string
@@ -84,7 +85,10 @@ export class WebhookChannel extends BaseChannel {
         fetchOptions.body = message.body
       }
 
-      const response = await fetch(url, fetchOptions)
+      const response = await fetchWithTimeout(url, {
+        ...fetchOptions,
+        timeout: options.timeoutMs ?? 8000,
+      })
 
       if (!response.ok) {
         const text = await response.text()

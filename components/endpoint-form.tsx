@@ -127,6 +127,35 @@ export function EndpointForm({
             />
           </div>
 
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="timeoutMs"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>超时时间 (ms)</FormLabel>
+                  <FormControl>
+                    <Input type="number" min={1000} max={120000} step={500} {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="retryCount"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>失败重试次数</FormLabel>
+                  <FormControl>
+                    <Input type="number" min={0} max={20} step={1} {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
           <FormField
             control={form.control}
             name="rule"
@@ -201,4 +230,3 @@ export function EndpointForm({
     </Form>
   )
 }
-

@@ -1,4 +1,5 @@
 import { BaseChannel, ChannelConfig, SendMessageOptions } from "./base"
+import { fetchWithTimeout } from "../utils"
 
 interface WecomMessage {
   msgtype: "text" | "markdown"
@@ -70,12 +71,13 @@ export class WecomChannel extends BaseChannel {
     
     console.log('sendWecomMessage message:', message)
 
-    const response = await fetch(webhook, {
+    const response = await fetchWithTimeout(webhook, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(message),
+      timeout: options.timeoutMs ?? 8000,
     })
 
     if (!response.ok) {

@@ -98,6 +98,17 @@ export function EndpointDetailPage({
               {formatRule(endpoint.rule)}
             </pre>
           </div>
+
+          <div className="grid grid-cols-2 gap-6">
+            <div className="grid gap-2">
+              <div className="text-sm text-muted-foreground">超时时间 (ms)</div>
+              <div className="font-medium">{endpoint.timeoutMs ?? 8000}</div>
+            </div>
+            <div className="grid gap-2">
+              <div className="text-sm text-muted-foreground">失败重试次数</div>
+              <div className="font-medium">{endpoint.retryCount ?? 3}</div>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>

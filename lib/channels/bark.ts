@@ -1,4 +1,5 @@
 import { BaseChannel, ChannelConfig, SendMessageOptions } from "./base"
+import { fetchWithTimeout } from "../utils"
 
 interface BarkMessage {
   title?: string
@@ -247,12 +248,13 @@ export class BarkChannel extends BaseChannel {
     if (message.action && message.action !== "default") postData.action = message.action
 
     try {
-      const response = await fetch(webhook, {
+      const response = await fetchWithTimeout(webhook, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(postData)
+        body: JSON.stringify(postData),
+        timeout: options.timeoutMs ?? 8000,
       });
 
       console.log('sendBarkMessage response status:', response.status);

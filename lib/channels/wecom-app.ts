@@ -1,4 +1,5 @@
 import { BaseChannel, ChannelConfig, SendMessageOptions } from "./base"
+import { fetchWithTimeout } from "../utils"
 
 interface WecomAppMessage {
   msgtype: string
@@ -60,8 +61,9 @@ export class WecomAppChannel extends BaseChannel {
     
     console.log('sendWecomAppMessage message:', message)
 
-    const tokenResponse = await fetch(
-      `https://qyapi.weixin.qq.com/cgi-bin/gettoken?corpid=${corpId}&corpsecret=${secret}`
+    const tokenResponse = await fetchWithTimeout(
+      `https://qyapi.weixin.qq.com/cgi-bin/gettoken?corpid=${corpId}&corpsecret=${secret}`,
+      { timeout: options.timeoutMs ?? 8000 }
     )
     const tokenData = await tokenResponse.json() as { access_token: string, errcode: number, errmsg: string }
     
@@ -69,7 +71,7 @@ export class WecomAppChannel extends BaseChannel {
       throw new Error(`获取访问令牌失败: ${tokenData.errmsg}`)
     }
 
-    const response = await fetch(
+    const response = await fetchWithTimeout(
       `https://qyapi.weixin.qq.com/cgi-bin/message/send?access_token=${tokenData.access_token}`,
       {
         method: 'POST',
@@ -81,6 +83,7 @@ export class WecomAppChannel extends BaseChannel {
           agentid: parseInt(agentId),
           touser: message.touser || "@all",
         }),
+        timeout: options.timeoutMs ?? 8000,
       }
     )
 

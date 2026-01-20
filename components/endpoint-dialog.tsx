@@ -69,6 +69,8 @@ export function EndpointDialog({
       name: endpoint?.name ?? "",
       channelId: endpoint?.channelId ?? "",
       rule: endpoint?.rule ?? "",
+      timeoutMs: endpoint?.timeoutMs ?? 8000,
+      retryCount: endpoint?.retryCount ?? 3,
     },
   })
 
@@ -132,4 +134,3 @@ export function EndpointDialog({
     </Dialog>
   )
 }
-

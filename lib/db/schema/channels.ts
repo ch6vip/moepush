@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm"
 import { text, sqliteTable, index } from "drizzle-orm/sqlite-core"
 import { createInsertSchema, createSelectSchema } from "drizzle-zod"
 import { z } from "zod"
-import { CHANNEL_TYPES } from "@/lib/channels"
+import { CHANNEL_TYPES } from "../../channels/constants"
 
 export const channels = sqliteTable("channels", {
   id: text("id").primaryKey(),

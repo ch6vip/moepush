@@ -1,5 +1,5 @@
 import { BaseChannel } from "./base"
-import { Channel as DBInferChannel } from "@/lib/db/schema/channels"
+import type { Channel as DBInferChannel } from "../db/schema/channels"
 import { DingTalkChannel } from "./dingtalk"
 import { WecomChannel } from "./wecom"
 import { WecomAppChannel } from "./wecom-app"
@@ -8,20 +8,10 @@ import { FeishuChannel } from "./feishu"
 import { DiscordChannel } from "./discord"
 import { BarkChannel } from "./bark"
 import { WebhookChannel } from "./webhook"
+import { CHANNEL_TYPES, type ChannelType } from "./constants"
 
-// 渠道类型常量
-export const CHANNEL_TYPES = {
-  DINGTALK: "dingtalk",
-  WECOM: "wecom",
-  WECOM_APP: "wecom_app",
-  TELEGRAM: "telegram",
-  FEISHU: "feishu",
-  DISCORD: "discord",
-  BARK: "bark",
-  WEBHOOK: "webhook",
-} as const
-
-export type ChannelType = typeof CHANNEL_TYPES[keyof typeof CHANNEL_TYPES]
+export { CHANNEL_TYPES }
+export type { ChannelType }
 
 // 注册所有渠道
 const channels: Record<ChannelType, BaseChannel> = {

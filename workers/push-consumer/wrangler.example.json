@@ -1,0 +1,28 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "moepush-push-consumer",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-02-04",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "moepush",
+      "database_id": "${D1_DATABASE_ID}",
+      "migrations_dir": "../../drizzle"
+    }
+  ],
+  "queues": {
+    "consumers": [
+      {
+        "queue": "moepush-push",
+        "max_batch_size": 10,
+        "max_batch_timeout": 5
+      }
+    ]
+  }
+}
+

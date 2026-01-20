@@ -1,4 +1,5 @@
 import { BaseChannel, ChannelConfig, SendMessageOptions } from "./base"
+import { fetchWithTimeout } from "../utils"
 
 interface TelegramMessage {
   chat_id: string
@@ -82,7 +83,7 @@ export class TelegramChannel extends BaseChannel {
     
     console.log('sendTelegramMessage message:', message)
 
-    const response = await fetch(
+    const response = await fetchWithTimeout(
       `https://api.telegram.org/bot${botToken}/sendMessage`,
       {
         method: 'POST',
@@ -93,6 +94,7 @@ export class TelegramChannel extends BaseChannel {
           ...message,
           chat_id: message.chat_id ||chatId,
         }),
+        timeout: options.timeoutMs ?? 8000,
       }
     )
 

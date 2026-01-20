@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth"
 import { getDb } from "@/lib/db"
 import { endpoints } from "@/lib/db/schema/endpoints"
+import { invalidateEndpointCache } from "@/lib/cache/endpoint"
 import { and, eq } from "drizzle-orm"
 import { NextResponse } from "next/server"
 
@@ -36,6 +37,9 @@ export async function POST(
       })
       .where(eq(endpoints.id, endpointId))
       .returning()
+
+    const cache = await caches.open("default")
+    await invalidateEndpointCache(cache, endpointId)
 
     return NextResponse.json(updated[0])
   } catch (error) {

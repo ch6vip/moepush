@@ -1,9 +1,8 @@
 import { NextRequest } from "next/server"
 import { getDb } from "@/lib/db"
-import { endpoints } from "@/lib/db/schema/endpoints"
-import { eq } from "drizzle-orm"
-import { safeInterpolate } from "@/lib/template"
-import { sendChannelMessage } from "@/lib/channels"
+import { getRequestContext } from "@cloudflare/next-on-pages"
+import { getEndpointWithCache } from "@/lib/cache/endpoint"
+import { generateId } from "@/lib/utils"
 
 export const runtime = "edge"
 
@@ -15,49 +14,36 @@ export async function POST(
     const { id } = await params
 
     const db = await getDb()
-    const endpoint = await db.query.endpoints.findFirst({
-      where: eq(endpoints.id, id),
-      with: {
-        channel: true,
-      },
-    })
+    const cache = await caches.open("default")
+    const endpoint = await getEndpointWithCache(db, cache, id)
 
     if (!endpoint || !endpoint.channel) {
-      return new Response("接口不存在", { status: 404 })
+      return new Response("Endpoint not found", { status: 404 })
     }
 
     if (endpoint.status !== "active") {
-      return new Response("接口已禁用", { status: 403 })
+      return new Response("Endpoint is disabled", { status: 403 })
     }
 
-    const body = await request.json()
-    console.log('body:', body)
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return new Response("Invalid JSON body", { status: 400 })
+    }
 
-    const processedTemplate = safeInterpolate(endpoint.rule, {
+    await getRequestContext().env.PUSH_QUEUE.send({
+      requestId: generateId(),
+      endpointId: id,
       body,
     })
 
-    const messageObj = JSON.parse(processedTemplate)
-
-    await sendChannelMessage(
-      endpoint.channel.type as any,
-      messageObj,
-      {
-        webhook: endpoint.channel.webhook,
-        secret: endpoint.channel.secret,
-        corpId: endpoint.channel.corpId,
-        agentId: endpoint.channel.agentId,
-        botToken: endpoint.channel.botToken,
-        chatId: endpoint.channel.chatId,
-      }
-    )
-
-    return new Response(JSON.stringify({ message: "推送成功" }), { status: 200 })
+    return new Response(JSON.stringify({ message: "Accepted" }), { status: 202 })
 
   } catch (error) {
     console.error("Push error:", error)
     return new Response(
-      JSON.stringify({ message: error instanceof Error ? error.message : "推送失败" }),
+      JSON.stringify({ message: error instanceof Error ? error.message : "Push failed" }),
       { status: 500 }
     )
   }

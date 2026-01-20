@@ -1,4 +1,5 @@
 import { BaseChannel, ChannelConfig, SendMessageOptions } from "./base"
+import { fetchWithTimeout } from "../utils"
 
 interface FeishuMessage {
   msg_type: "text" | "post"
@@ -122,12 +123,13 @@ export class FeishuChannel extends BaseChannel {
 
     console.log('sendFeishuMessage message:', message)
 
-    const response = await fetch(webhook, {
+    const response = await fetchWithTimeout(webhook, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(message),
+      timeout: options.timeoutMs ?? 8000,
     })
 
     if (!response.ok) {

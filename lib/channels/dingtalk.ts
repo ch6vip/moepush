@@ -1,4 +1,5 @@
 import { BaseChannel, ChannelConfig, SendMessageOptions } from "./base"
+import { fetchWithTimeout } from "../utils"
 
 interface DingTalkMessage {
   msgtype: string
@@ -137,12 +138,13 @@ export class DingTalkChannel extends BaseChannel {
       console.log('Sending DingTalk message to:', url)
       console.log('Message:', message)
 
-      const response = await fetch(url, {
+      const response = await fetchWithTimeout(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(message),
+        timeout: options.timeoutMs ?? 8000,
       })
 
       const data = await response.json() as { errcode: number, errmsg: string }

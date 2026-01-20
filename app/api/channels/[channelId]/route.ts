@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth"
 import { getDb } from "@/lib/db"
 import { channels, insertChannelSchema } from "@/lib/db/schema/channels"
+import { invalidateEndpointsByChannelId } from "@/lib/cache/endpoint"
 import { and, eq } from "drizzle-orm"
 import { NextResponse } from "next/server"
 import { z } from "zod"
@@ -40,6 +41,9 @@ export async function PATCH(
       .where(eq(channels.id, channelId))
       .returning()
 
+    const cache = await caches.open("default")
+    await invalidateEndpointsByChannelId(db, cache, channelId)
+
     return NextResponse.json(updated[0])
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -77,6 +81,9 @@ export async function DELETE(
 
     await db.delete(channels)
       .where(eq(channels.id, channelId))
+
+    const cache = await caches.open("default")
+    await invalidateEndpointsByChannelId(db, cache, channelId)
 
     return new NextResponse(null, { status: 204 })
   } catch (error) {

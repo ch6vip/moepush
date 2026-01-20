@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm"
-import { text, sqliteTable, index } from "drizzle-orm/sqlite-core"
+import { text, sqliteTable, index, integer } from "drizzle-orm/sqlite-core"
 import { createInsertSchema, createSelectSchema } from "drizzle-zod"
 import { relations } from "drizzle-orm"
 import { z } from "zod"
@@ -13,6 +13,8 @@ export const endpoints = sqliteTable("endpoints", {
   channelId: text("channel_id").notNull(),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   rule: text("rule").notNull(),
+  timeoutMs: integer("timeout_ms").notNull().default(8000),
+  retryCount: integer("retry_count").notNull().default(3),
 }, (table) => ({
   userIdIdx: index("endpoints_user_id_idx").on(table.userId),
   channelIdIdx: index("endpoints_channel_id_idx").on(table.channelId),
@@ -31,6 +33,8 @@ export const insertEndpointSchema = createInsertSchema(endpoints).extend({
   id: z.string().optional(),
   channelId: z.string().min(1, "请选择推送渠道"),
   rule: z.string().min(1, "消息模版不能为空"),
+  timeoutMs: z.coerce.number().int().min(1000).max(120000).optional(),
+  retryCount: z.coerce.number().int().min(0).max(20).optional(),
 })
 
 export const selectEndpointSchema = createSelectSchema(endpoints)
