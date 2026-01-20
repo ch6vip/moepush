@@ -40,7 +40,7 @@ async function getRecentPushLogs(userId: string) {
     })
     .from(pushLogs)
     .leftJoin(endpoints, eq(pushLogs.endpointId, endpoints.id))
-    .where(eq(endpoints.userId, userId))
+    .where(eq(pushLogs.userId, userId))
     .orderBy(desc(pushLogs.createdAt))
     .limit(20)
 }

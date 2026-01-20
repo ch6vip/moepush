@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
 import { endpointGroups, endpointToGroup } from '@/lib/db/schema/endpoint-groups'
 import { eq } from 'drizzle-orm'
-import { getRequestContext } from '@cloudflare/next-on-pages'
 import { generateId } from '@/lib/utils'
+import { executePush } from '@/lib/push/execute'
 
 export const runtime = 'edge'
 
@@ -21,6 +21,7 @@ export async function POST(
 
   try {
     const db = await getDb()
+    const cache = await caches.open("default")
 
     const group = await db.query.endpointGroups.findFirst({
       where: eq(endpointGroups.id, id),
@@ -56,32 +57,73 @@ export async function POST(
       )
     }
 
-    await getRequestContext().env.PUSH_QUEUE.sendBatch(
-      groupEndpoints.map((endpoint: any) => ({
-        body: {
-          requestId: generateId(),
+    const results = await Promise.allSettled(
+      groupEndpoints.map(async (endpoint: any) => {
+        const requestId = generateId()
+        const r = await executePush({
+          db,
+          cache,
+          requestId,
           endpointId: endpoint.id,
           body,
-        },
-        contentType: "json",
-      }))
+        })
+
+        return {
+          endpointId: endpoint.id,
+          name: endpoint.name,
+          requestId,
+          ok: r.ok,
+          responseBody: r.responseBody,
+        }
+      })
     )
 
-    return NextResponse.json(
-      {
-        status: 'accepted',
-        message: 'Accepted',
-        groupId: group.id,
-        groupName: group.name,
-        total: groupEndpoints.length,
-      },
-      { status: 202 }
-    )
+    const fulfilled = results.filter((r) => r.status === "fulfilled") as Array<
+      PromiseFulfilledResult<{
+        endpointId: string
+        name: string
+        requestId: string
+        ok: boolean
+        responseBody: string | null
+      }>
+    >
+
+    const successCount = fulfilled.filter((r) => r.value.ok).length
+    const failedCount = groupEndpoints.length - successCount
+
+    return NextResponse.json({
+      status: "done",
+      message: `Group ${group.name} processed`,
+      groupId: group.id,
+      groupName: group.name,
+      total: groupEndpoints.length,
+      successCount,
+      failedCount,
+      details: results.map((r, i) => {
+        const endpoint = groupEndpoints[i]
+        if (r.status === "fulfilled") {
+          return {
+            endpointId: r.value.endpointId,
+            endpoint: endpoint.name,
+            requestId: r.value.requestId,
+            status: r.value.ok ? "success" : "failed",
+            error: r.value.ok ? undefined : r.value.responseBody ?? "failed",
+          }
+        }
+        return {
+          endpointId: endpoint.id,
+          endpoint: endpoint.name,
+          requestId: null,
+          status: "failed",
+          error: r.reason instanceof Error ? r.reason.message : String(r.reason),
+        }
+      }),
+    })
 
   } catch (error) {
     console.error('Push group error:', error)
     return NextResponse.json(
-      { error: 'Failed to enqueue group push' },
+      { error: 'Failed to process group push' },
       { status: 500 }
     )
   }

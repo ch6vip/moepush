@@ -3,7 +3,6 @@
 declare global {
   interface CloudflareEnv {
     DB: D1Database;
-    PUSH_QUEUE: Queue;
     AUTH_SECRET: string;
     AUTH_GITHUB_ID: string;
     AUTH_GITHUB_SECRET: string;

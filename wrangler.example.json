@@ -9,14 +9,6 @@
   "observability": {
     "enabled": true
   },
-  "queues": {
-    "producers": [
-      {
-        "queue": "moepush-push",
-        "binding": "PUSH_QUEUE"
-      }
-    ]
-  },
   "d1_databases": [
     {
       "binding": "DB",
