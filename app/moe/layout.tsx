@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth"
-import { Key, LayoutGrid } from "lucide-react"
+import { Key, LayoutGrid, Layers } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -28,6 +28,12 @@ export default async function MoeLayout({
         )}>
           <LayoutGrid className="h-4 w-4" />
           渠道管理
+        </Button>
+      </Link>
+      <Link href="/moe/endpoint-groups">
+        <Button variant="ghost" size="sm" className={cn("gap-2 text-muted-foreground hover:text-foreground")}>
+          <Layers className="h-4 w-4" />
+          接口组
         </Button>
       </Link>
     </nav>

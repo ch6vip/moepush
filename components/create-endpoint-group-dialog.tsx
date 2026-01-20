@@ -27,7 +27,6 @@ import { z } from "zod"
 import { useToast } from "@/components/ui/use-toast"
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { createEndpointGroup, updateEndpointGroup } from "@/lib/services/endpoint-groups"
-import { useRouter } from "next/navigation"
 import { EndpointGroupWithEndpoints } from "@/types/endpoint-group"
 import { Endpoint } from "@/lib/db/schema/endpoints"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -57,7 +56,6 @@ export function EndpointGroupDialog({
   const [open, setOpen] = useState(false)
   const [isPending, setIsPending] = useState(false)
   const { toast } = useToast()
-  const router = useRouter()
 
   const form = useForm<EndpointGroupFormValues>({
     resolver: zodResolver(endpointGroupSchema),
@@ -102,7 +100,6 @@ export function EndpointGroupDialog({
       setOpen(false)
       form.reset()
       onSuccess?.()
-      router.refresh()
     } catch (error) {
       console.error('Endpoint group dialog error:', error)
       toast({
@@ -209,155 +206,6 @@ export function EndpointGroupDialog({
                 >
                   {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {mode === "edit" ? "保存修改" : "创建接口组"}
-                </Button>
-              </div>
-            </form>
-          </div>
-        </Form>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-interface CreateEndpointGroupDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  selectedEndpoints: Endpoint[]
-  onSuccess?: () => void
-}
-
-export function CreateEndpointGroupDialog({
-  open,
-  onOpenChange,
-  selectedEndpoints,
-  onSuccess,
-}: CreateEndpointGroupDialogProps) {
-  const { toast } = useToast()
-  const router = useRouter()
-  const [isPending, setIsPending] = useState(false)
-
-  const form = useForm<EndpointGroupFormValues>({
-    resolver: zodResolver(endpointGroupSchema),
-    defaultValues: {
-      name: "",
-      endpointIds: selectedEndpoints.map((e) => e.id),
-    },
-  })
-
-  useEffect(() => {
-    if (!open) return
-    form.reset({
-      name: "",
-      endpointIds: selectedEndpoints.map((e) => e.id),
-    })
-  }, [open, selectedEndpoints, form])
-
-  const toggleEndpoint = (endpointId: string) => {
-    const currentIds = form.getValues("endpointIds")
-    const newIds = currentIds.includes(endpointId)
-      ? currentIds.filter((id) => id !== endpointId)
-      : [...currentIds, endpointId]
-    form.setValue("endpointIds", newIds, { shouldValidate: true })
-  }
-
-  async function onSubmit(data: EndpointGroupFormValues) {
-    try {
-      setIsPending(true)
-      await createEndpointGroup(data)
-      toast({ description: "接口组已创建" })
-      onOpenChange(false)
-      form.reset()
-      onSuccess?.()
-      router.refresh()
-    } catch (error) {
-      console.error("Create endpoint group error:", error)
-      toast({
-        variant: "destructive",
-        description: error instanceof Error ? error.message : "创建失败，请重试",
-      })
-    } finally {
-      setIsPending(false)
-    }
-  }
-
-  const selectedCount = form.watch("endpointIds")?.length || 0
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[640px]">
-        <DialogHeader>
-          <DialogTitle>创建接口组</DialogTitle>
-          <DialogDescription>为已选择的接口创建一个新的接口组</DialogDescription>
-        </DialogHeader>
-        <Form {...form}>
-          <div className="max-h-[calc(80vh-160px)] overflow-y-auto">
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 py-4 px-1">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>
-                      接口组名称
-                      <span className="text-red-500 ml-1">*</span>
-                    </FormLabel>
-                    <FormControl>
-                      <Input placeholder="请输入接口组名称" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="endpointIds"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>
-                      已选择接口
-                      <span className="text-red-500 ml-1">*</span>
-                    </FormLabel>
-                    <div className="text-sm text-muted-foreground mb-2">
-                      当前包含 {selectedCount} 个接口
-                    </div>
-                    <div className="max-h-[300px] overflow-y-auto rounded-md border p-4">
-                      <div className="space-y-3">
-                        {selectedEndpoints.length === 0 ? (
-                          <div className="text-sm text-muted-foreground text-center py-8">
-                            暂无已选择接口
-                          </div>
-                        ) : (
-                          selectedEndpoints.map((endpoint) => (
-                            <div
-                              key={endpoint.id}
-                              className="flex items-center space-x-3 rounded-md border p-3 hover:bg-accent transition-colors"
-                            >
-                              <Checkbox
-                                checked={field.value.includes(endpoint.id)}
-                                onCheckedChange={() => toggleEndpoint(endpoint.id)}
-                              />
-                              <div className="flex-1">
-                                <div className="font-medium">{endpoint.name}</div>
-                                <div className="text-xs text-muted-foreground font-mono">{endpoint.id}</div>
-                              </div>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => onOpenChange(false)} type="button">
-                  取消
-                </Button>
-                <Button type="submit" disabled={isPending || selectedEndpoints.length === 0}>
-                  {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  创建接口组
                 </Button>
               </div>
             </form>
