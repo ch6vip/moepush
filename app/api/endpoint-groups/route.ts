@@ -2,8 +2,8 @@ import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { getDb } from "@/lib/db"
 import { endpointGroups, endpointToGroup } from "@/lib/db/schema/endpoint-groups"
-import { endpoints } from "@/lib/db/schema/endpoints"
-import { eq, and, inArray } from "drizzle-orm"
+import { validateUserEndpointAccess } from "@/lib/services/endpoint-groups-validation"
+import { eq } from "drizzle-orm"
 import { generateId } from "@/lib/utils"
 import { z } from "zod"
 
@@ -80,17 +80,17 @@ export async function POST(request: Request) {
       )
     }
 
+    const validatedData = result.data
     const db = await getDb()
     const groupId = generateId()
 
-    const validEndpoints = await db.query.endpoints.findMany({
-      where: and(
-        eq(endpoints.userId, session!.user!.id!),
-        inArray(endpoints.id, data.endpointIds)
-      )
-    })
+    const hasEndpointAccess = await validateUserEndpointAccess(
+      db,
+      session!.user!.id!,
+      validatedData.endpointIds
+    )
 
-    if (validEndpoints.length !== data.endpointIds.length) {
+    if (!hasEndpointAccess) {
       return NextResponse.json(
         { error: "部分接口不存在或无权访问" },
         { status: 400 }
@@ -99,7 +99,7 @@ export async function POST(request: Request) {
 
     await db.insert(endpointGroups).values({
       id: groupId,
-      name: data.name,
+      name: validatedData.name,
       userId: session!.user!.id!,
       status: "active",
       createdAt: new Date(),
@@ -107,7 +107,7 @@ export async function POST(request: Request) {
     })
 
     await db.insert(endpointToGroup).values(
-      data.endpointIds.map(endpointId => ({
+      validatedData.endpointIds.map(endpointId => ({
         endpointId,
         groupId
       }))
