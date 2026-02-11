@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { getDb } from "@/lib/db"
 import { endpointGroups, endpointToGroup } from "@/lib/db/schema/endpoint-groups"
+import { validateUserEndpointAccess } from "@/lib/services/endpoint-groups-validation"
 import { eq } from "drizzle-orm"
 import { z } from "zod"
 
@@ -38,6 +39,19 @@ export async function PUT(
 
     const body = await request.json()
     const validatedData = updateEndpointGroupSchema.parse(body)
+
+    const hasEndpointAccess = await validateUserEndpointAccess(
+      db,
+      session!.user!.id!,
+      validatedData.endpointIds
+    )
+
+    if (!hasEndpointAccess) {
+      return NextResponse.json(
+        { error: "部分接口不存在或无权访问" },
+        { status: 400 }
+      )
+    }
 
     // 更新接口组名称
     await db.update(endpointGroups)
