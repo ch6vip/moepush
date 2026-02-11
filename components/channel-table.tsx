@@ -17,7 +17,7 @@ import {
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu"
 import { MoreHorizontal, Loader2 } from "lucide-react"
-import { useState, useEffect } from "react"
+import { useMemo, useState } from "react"
 import { ChannelDialog } from "@/components/channel-dialog"
 import { Channel, CHANNEL_LABELS } from "@/lib/channels"
 import { useToast } from "@/components/ui/use-toast"
@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useRouter } from "next/navigation"
 import { deleteChannel } from "@/lib/services/channels"
+import { useDeleteDialog } from "@/components/hooks/use-delete-dialog"
 
 interface ChannelTableProps {
   channels: Channel[]
@@ -40,18 +41,12 @@ interface ChannelTableProps {
 
 export function ChannelTable({ channels }: ChannelTableProps) {
   const [searchQuery, setSearchQuery] = useState("")
-  const [channelsState, setChannels] = useState(channels)
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [channelToDelete, setChannelToDelete] = useState<Channel | null>(null)
-  const [isDeleting, setIsDeleting] = useState(false)
+  const deleteDialog = useDeleteDialog<Channel>()
   const { toast } = useToast()
   const router = useRouter()
 
-  useEffect(() => {
-    setChannels(channels)
-  }, [channels])
 
-  const filteredChannels = channelsState.filter((channel) => {
+  const filteredChannels = useMemo(() => channels.filter((channel) => {
     if (!searchQuery.trim()) return true
     
     const searchContent = [
@@ -62,26 +57,25 @@ export function ChannelTable({ channels }: ChannelTableProps) {
     
     const keywords = searchQuery.toLowerCase().split(/\s+/)
     return keywords.every(keyword => searchContent.includes(keyword))
-  })
+  }), [channels, searchQuery])
 
   const handleDelete = async () => {
-    if (!channelToDelete) return
-    
+    if (!deleteDialog.item) return
+
     try {
-      setIsDeleting(true)
-      await deleteChannel(channelToDelete.id)
-      toast({ title: '删除成功' })
+      deleteDialog.setPending(true)
+      await deleteChannel(deleteDialog.item.id)
+      toast({ title: "删除成功" })
       router.refresh()
-      setChannels(channelsState.filter(c => c.id !== channelToDelete.id))
-      setDeleteDialogOpen(false)
+      deleteDialog.setOpen(false)
     } catch (error) {
-      console.error('Error deleting channel:', error)
-      toast({ 
-        title: '删除失败',
-        variant: 'destructive'
+      console.error("Error deleting channel:", error)
+      toast({
+        title: "删除失败",
+        variant: "destructive",
       })
     } finally {
-      setIsDeleting(false)
+      deleteDialog.setPending(false)
     }
   }
 
@@ -159,8 +153,7 @@ export function ChannelTable({ channels }: ChannelTableProps) {
                         <DropdownMenuItem 
                           className="text-red-600"
                           onClick={() => {
-                            setChannelToDelete(channel)
-                            setDeleteDialogOpen(true)
+                            deleteDialog.openFor(channel)
                           }}
                         >
                           删除
@@ -175,21 +168,21 @@ export function ChannelTable({ channels }: ChannelTableProps) {
         </Table>
       </div>
 
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      <AlertDialog open={deleteDialog.open} onOpenChange={deleteDialog.setOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>确认删除</AlertDialogTitle>
             <AlertDialogDescription>
-              确定要删除渠道 {channelToDelete?.name} 吗？此操作无法撤销。
+              确定要删除渠道 {deleteDialog.item?.name} 吗？此操作无法撤销。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction
-              disabled={isDeleting}
+              disabled={deleteDialog.pending}
               onClick={handleDelete}
             >
-              {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {deleteDialog.pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               确认
             </AlertDialogAction>
           </AlertDialogFooter>

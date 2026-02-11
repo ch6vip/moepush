@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { Loader2, Trash, Eye, Power, Send, Pencil } from "lucide-react"
 
 import {
@@ -37,6 +37,7 @@ import {
 import { MoreHorizontal } from "lucide-react"
 import { EndpointGroupDialog } from "./endpoint-group-dialog"
 import { Endpoint } from "@/lib/db/schema/endpoints"
+import { useDeleteDialog } from "@/components/hooks/use-delete-dialog"
 
 interface EndpointGroupTableProps {
   groups: EndpointGroupWithEndpoints[]
@@ -46,15 +47,13 @@ interface EndpointGroupTableProps {
 
 export function EndpointGroupTable({ groups, availableEndpoints, onGroupsUpdate }: EndpointGroupTableProps) {
   const [searchQuery, setSearchQuery] = useState("")
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [groupToDelete, setGroupToDelete] = useState<EndpointGroupWithEndpoints | null>(null)
-  const [isDeleting, setIsDeleting] = useState(false)
+  const deleteDialog = useDeleteDialog<EndpointGroupWithEndpoints>()
   const [viewExample, setViewExample] = useState<EndpointGroupWithEndpoints | null>(null)
   const [isLoading, setIsLoading] = useState<string | null>(null)
   const [isTesting, setIsTesting] = useState<string | null>(null)
   const { toast } = useToast()
   
-  const filteredGroups = groups.filter((group) => {
+  const filteredGroups = useMemo(() => groups.filter((group) => {
     if (!searchQuery.trim()) return true
     
     const searchContent = [
@@ -65,28 +64,28 @@ export function EndpointGroupTable({ groups, availableEndpoints, onGroupsUpdate 
     
     const keywords = searchQuery.toLowerCase().split(/\s+/)
     return keywords.every(keyword => searchContent.includes(keyword))
-  })
+  }), [groups, searchQuery])
   
   const handleDelete = async () => {
-    if (!groupToDelete) return
-    
+    if (!deleteDialog.item) return
+
     try {
-      setIsDeleting(true)
-      await deleteEndpointGroup(groupToDelete.id)
+      deleteDialog.setPending(true)
+      await deleteEndpointGroup(deleteDialog.item.id)
       onGroupsUpdate()
       toast({ description: "接口组已删除" })
-      setDeleteDialogOpen(false)
+      deleteDialog.setOpen(false)
     } catch (error) {
-      console.error('Error deleting endpoint group:', error)
-      toast({ 
+      console.error("Error deleting endpoint group:", error)
+      toast({
         variant: "destructive",
-        description: "删除失败，请重试" 
+        description: "删除失败，请重试",
       })
     } finally {
-      setIsDeleting(false)
+      deleteDialog.setPending(false)
     }
   }
-  
+
   const handleToggleStatus = async (id: string) => {
     try {
       setIsLoading(id)
@@ -244,8 +243,7 @@ export function EndpointGroupTable({ groups, availableEndpoints, onGroupsUpdate 
                         </DropdownMenuItem>
                         <DropdownMenuItem 
                           onClick={() => {
-                            setGroupToDelete(group)
-                            setDeleteDialogOpen(true)
+                            deleteDialog.openFor(group)
                           }}
                           className="text-red-600"
                         >
@@ -262,21 +260,21 @@ export function EndpointGroupTable({ groups, availableEndpoints, onGroupsUpdate 
         </Table>
       </div>
 
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      <AlertDialog open={deleteDialog.open} onOpenChange={deleteDialog.setOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>确认删除</AlertDialogTitle>
             <AlertDialogDescription>
-              确定要删除接口组 {groupToDelete?.name} 吗？此操作不会删除组内的接口，但无法撤销。
+              确定要删除接口组 {deleteDialog.item?.name} 吗？此操作不会删除组内的接口，但无法撤销。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction
-              disabled={isDeleting}
+              disabled={deleteDialog.pending}
               onClick={handleDelete}
             >
-              {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {deleteDialog.pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               确认
             </AlertDialogAction>
           </AlertDialogFooter>

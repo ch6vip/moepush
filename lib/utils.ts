@@ -105,3 +105,10 @@ export function generateExampleBody(rule: string) {
     return { message: "示例消息内容" };
   }
 }
+export function safeJsonParse<T>(value: string, fallback: T): T {
+  try {
+    return JSON.parse(value) as T
+  } catch {
+    return fallback
+  }
+}

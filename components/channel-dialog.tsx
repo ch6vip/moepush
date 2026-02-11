@@ -66,7 +66,6 @@ export function ChannelDialog({ mode = "create", channel }: ChannelDialogProps) 
   })
 
   async function onSubmit(data: ChannelFormData) {
-    console.log('onSubmit', data)
     try {
       setIsPending(true)
       if (mode === "edit" && channel) {
