@@ -1,5 +1,6 @@
 import { EndpointGroupWithEndpoints } from "@/types/endpoint-group"
 import { generateExampleBody } from "@/lib/utils"
+import { request } from "@/lib/services/request"
 
 const API_URL = '/api/endpoint-groups'
 
@@ -19,12 +20,7 @@ interface ToggleEndpointGroupResponse extends EndpointGroupResponse {
 }
 
 export async function getEndpointGroups(): Promise<EndpointGroupWithEndpoints[]> {
-  const response = await fetch(API_URL)
-  if (!response.ok) {
-    const error = await response.json() as { error: string }
-    throw new Error(error.error || '获取接口组失败')
-  }
-  const data = await response.json() as EndpointGroupResponse[]
+  const data = await request<EndpointGroupResponse[]>(API_URL, undefined, "获取接口组失败")
   return data.map(group => ({
     ...group,
     createdAt: new Date(group.createdAt),
@@ -42,22 +38,19 @@ export async function createEndpointGroup(data: CreateEndpointGroupData): Promis
     throw new Error('请至少选择一个接口')
   }
 
-  const response = await fetch(API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
+  return request<{ id: string }>(
+    API_URL,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        ...data,
+      }),
     },
-    body: JSON.stringify({
-      ...data,
-    }),
-  })
-
-  if (!response.ok) {
-    const error = await response.json() as { error: string }
-    throw new Error(error.error || '创建接口组失败')
-  }
-
-  return response.json() as Promise<{ id: string }>
+    "创建接口组失败",
+  )
 }
 
 export interface UpdateEndpointGroupData {
@@ -70,46 +63,25 @@ export async function updateEndpointGroup(id: string, data: UpdateEndpointGroupD
     throw new Error('请至少选择一个接口')
   }
 
-  const response = await fetch(`${API_URL}/${id}`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
+  return request<{ success: boolean }>(
+    `${API_URL}/${id}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
     },
-    body: JSON.stringify(data),
-  })
-
-  if (!response.ok) {
-    const error = await response.json() as { error: string }
-    throw new Error(error.error || '更新接口组失败')
-  }
-
-  return response.json() as Promise<{ success: boolean }>
+    "更新接口组失败",
+  )
 }
 
 export async function deleteEndpointGroup(id: string): Promise<{ success: boolean }> {
-  const response = await fetch(`${API_URL}/${id}`, {
-    method: 'DELETE',
-  })
-
-  if (!response.ok) {
-    const error = await response.json() as { error: string }
-    throw new Error(error.error || '删除接口组失败')
-  }
-
-  return response.json() as Promise<{ success: boolean }>
+  return request<{ success: boolean }>(`${API_URL}/${id}`, { method: "DELETE" }, "删除接口组失败")
 }
 
 export async function toggleEndpointGroupStatus(id: string): Promise<EndpointGroupWithEndpoints> {
-  const response = await fetch(`${API_URL}/${id}/toggle`, {
-    method: 'POST',
-  })
-
-  if (!response.ok) {
-    const error = await response.json() as { error: string }
-    throw new Error(error.error || '切换状态失败')
-  }
-
-  const data = await response.json() as ToggleEndpointGroupResponse
+  const data = await request<ToggleEndpointGroupResponse>(`${API_URL}/${id}/toggle`, { method: "POST" }, "切换状态失败")
   return {
     ...data,
     createdAt: new Date(data.createdAt),
@@ -124,18 +96,15 @@ export async function testEndpointGroup(group: EndpointGroupWithEndpoints): Prom
   const allRules = group.endpoints.flatMap(e => e.rule ? [e.rule] : [])
   const exampleBody = generateExampleBody(allRules.length > 0 ? allRules.join('\n') : '{}')
 
-  const response = await fetch(`/api/push-group/${group.id}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
+  return request(
+    `/api/push-group/${group.id}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(exampleBody),
     },
-    body: JSON.stringify(exampleBody),
-  })
-
-  if (!response.ok) {
-    const error = await response.json() as { error: string }
-    throw new Error(error.error || '测试推送失败')
-  }
-
-  return response.json()
+    "测试推送失败",
+  )
 } 

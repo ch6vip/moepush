@@ -22,6 +22,7 @@ import { insertEndpointSchema } from "@/lib/db/schema/endpoints"
 import type { Endpoint, NewEndpoint } from "@/lib/db/schema/endpoints"
 import type { Channel, ChannelType } from "@/lib/channels"
 import { createEndpoint, updateEndpoint } from "@/lib/services/endpoints"
+import { safeJsonParse } from "@/lib/utils"
 
 interface EndpointDialogProps {
   mode?: "create" | "edit"
@@ -40,7 +41,7 @@ const getInitialChannelType = (channels: Channel[], endpoint?: Endpoint) => {
 
 const getInitialTemplateType = (endpoint?: Endpoint) => {
   if (endpoint) {
-    const rule = JSON.parse(endpoint.rule || "{}")
+    const rule = safeJsonParse<Record<string, string>>(endpoint.rule || "{}", {})
     return rule.msgtype || rule.parse_mode
   }
 }

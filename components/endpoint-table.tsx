@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import Link from "next/link"
 import { Eye, Loader2, MoreHorizontal, Pencil, Power, Trash, Zap } from "lucide-react"
 
@@ -37,6 +37,7 @@ import { useEndpointRowActions } from "@/components/hooks/use-endpoint-row-actio
 import { STATUS_COLORS, STATUS_LABELS } from "@/lib/constants/endpoints"
 import { Channel } from "@/lib/channels"
 import { Endpoint } from "@/lib/db/schema/endpoints"
+import { safeJsonParse } from "@/lib/utils"
 
 interface EndpointTableProps {
   endpoints: Endpoint[]
@@ -48,18 +49,23 @@ export function EndpointTable({ endpoints, channels, onEndpointsUpdate }: Endpoi
   const [searchQuery, setSearchQuery] = useState("")
   const rowActions = useEndpointRowActions({ onEndpointsUpdate })
 
-  const filteredEndpoints =
-    endpoints?.filter((endpoint) => {
-      if (!searchQuery.trim()) return true
+  const channelById = useMemo(() => {
+    return new Map(channels.map((channel) => [channel.id, channel]))
+  }, [channels])
 
-      const channel = channels.find((c) => c.id === endpoint.channelId)
-      const searchContent = [endpoint.id, endpoint.name, endpoint.rule, channel?.name]
-        .join(" ")
-        .toLowerCase()
+  const filteredEndpoints = useMemo(
+    () =>
+      endpoints?.filter((endpoint) => {
+        if (!searchQuery.trim()) return true
 
-      const keywords = searchQuery.toLowerCase().split(/\s+/)
-      return keywords.every((keyword) => searchContent.includes(keyword))
-    }) ?? []
+        const channel = channelById.get(endpoint.channelId)
+        const searchContent = [endpoint.id, endpoint.name, endpoint.rule, channel?.name].join(" ").toLowerCase()
+
+        const keywords = searchQuery.toLowerCase().split(/\s+/)
+        return keywords.every((keyword) => searchContent.includes(keyword))
+      }) ?? [],
+    [channelById, endpoints, searchQuery],
+  )
 
   const getStatusBadgeClass = (status: Endpoint["status"]) => {
     return `inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${STATUS_COLORS[status]}`
@@ -101,7 +107,7 @@ export function EndpointTable({ endpoints, channels, onEndpointsUpdate }: Endpoi
               </TableRow>
             ) : (
               filteredEndpoints.map((endpoint) => {
-                const channel = channels.find((c) => c.id === endpoint.channelId)
+                const channel = channelById.get(endpoint.channelId)
                 return (
                   <TableRow key={endpoint.id}>
                     <TableCell className="font-mono">{endpoint.id}</TableCell>
@@ -116,7 +122,7 @@ export function EndpointTable({ endpoints, channels, onEndpointsUpdate }: Endpoi
                         </PopoverTrigger>
                         <PopoverContent className="w-[400px]">
                           <pre className="font-mono text-sm whitespace-pre-wrap break-all bg-muted p-2 rounded-md">
-                            {JSON.stringify(JSON.parse(endpoint.rule || "{}"), null, 2)}
+                            {JSON.stringify(safeJsonParse<Record<string, unknown>>(endpoint.rule || "{}", {}), null, 2)}
                           </pre>
                         </PopoverContent>
                         </Popover>
