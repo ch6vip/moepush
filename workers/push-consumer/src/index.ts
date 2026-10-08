@@ -1,3 +1,4 @@
+import { and, eq } from "drizzle-orm"
 import { drizzle, type DrizzleD1Database } from "drizzle-orm/d1"
 
 import * as schema from "../../../lib/db/schema"
@@ -9,83 +10,54 @@ import { pushLogs } from "../../../lib/db/schema/push-logs"
 
 type Db = DrizzleD1Database<typeof schema>
 
-async function handlePushMessage(
-  db: Db,
-  cache: Cache,
-  message: Message<PushQueueMessage>
-) {
-  const { requestId, endpointId, body } = message.body ?? ({} as any)
+async function persistPushLog(db: Db, values: typeof pushLogs.$inferInsert) {
+  try {
+    await db.insert(pushLogs).values(values)
+  } catch (error) {
+    console.error("[PUSH_LOG_WRITE_FAILED]", { requestId: values.requestId, endpointId: values.endpointId, status: values.status }, error)
+  }
+}
 
+async function handlePushMessage(db: Db, cache: Cache, message: Message<PushQueueMessage>) {
+  const { requestId, endpointId, body } = message.body ?? ({} as any)
   if (!requestId || typeof requestId !== "string" || !endpointId || typeof endpointId !== "string") {
-    console.warn("Invalid message payload:", message.body)
+    console.warn("Invalid push queue payload")
+    message.ack()
+    return
+  }
+
+  const priorSuccess = await db.query.pushLogs.findFirst({
+    where: and(eq(pushLogs.requestId, requestId), eq(pushLogs.endpointId, endpointId), eq(pushLogs.status, "success")),
+    columns: { id: true },
+  })
+  if (priorSuccess) {
     message.ack()
     return
   }
 
   const endpoint = await getEndpointWithCache(db, cache, endpointId)
-
   if (!endpoint || !endpoint.channel) {
-    console.warn("Endpoint not found for message:", endpointId)
-    await db.insert(pushLogs).values({
-      id: crypto.randomUUID(),
-      requestId,
-      endpointId,
-      status: "failed",
-      responseBody: "endpoint_not_found_or_channel_missing",
-    })
+    await persistPushLog(db, { id: crypto.randomUUID(), requestId, endpointId, userId: endpoint?.userId ?? null, status: "failed", responseBody: "endpoint_not_found_or_channel_missing" })
     message.ack()
     return
   }
-
   if (endpoint.status !== "active") {
-    console.warn("Endpoint disabled for message:", endpointId)
-    await db.insert(pushLogs).values({
-      id: crypto.randomUUID(),
-      requestId,
-      endpointId,
-      status: "failed",
-      responseBody: "endpoint_disabled",
-    })
+    await persistPushLog(db, { id: crypto.randomUUID(), requestId, endpointId, userId: endpoint.userId, status: "failed", responseBody: "endpoint_disabled" })
     message.ack()
     return
   }
 
-  const timeoutMs = endpoint.timeoutMs ?? 8000
-  const retryCount = endpoint.retryCount ?? 3
-  const maxAttempts = retryCount + 1
-
-  let processedTemplate: string
+  let messageObj: unknown
   try {
-    processedTemplate = safeInterpolate(endpoint.rule, { body })
-  } catch (err) {
-    console.error("Template processing failed:", err)
-    await db.insert(pushLogs).values({
-      id: crypto.randomUUID(),
-      requestId,
-      endpointId,
-      status: "failed",
-      responseBody: err instanceof Error ? `template_error: ${err.message}` : "template_error",
-    })
+    messageObj = JSON.parse(safeInterpolate(endpoint.rule, { body }))
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "template_error"
+    await persistPushLog(db, { id: crypto.randomUUID(), requestId, endpointId, userId: endpoint.userId, status: "failed", responseBody: reason })
     message.ack()
     return
   }
 
-  let messageObj: any
-  try {
-    messageObj = JSON.parse(processedTemplate)
-  } catch (err) {
-    console.error("Template is not valid JSON:", err)
-    await db.insert(pushLogs).values({
-      id: crypto.randomUUID(),
-      requestId,
-      endpointId,
-      status: "failed",
-      responseBody: err instanceof Error ? `template_json_error: ${err.message}` : "template_json_error",
-    })
-    message.ack()
-    return
-  }
-
+  let sendError: unknown
   try {
     await sendChannelMessage(endpoint.channel.type as any, messageObj, {
       webhook: endpoint.channel.webhook,
@@ -94,45 +66,32 @@ async function handlePushMessage(
       agentId: endpoint.channel.agentId,
       botToken: endpoint.channel.botToken,
       chatId: endpoint.channel.chatId,
-      timeoutMs,
+      timeoutMs: endpoint.timeoutMs ?? 8000,
     })
-    await db.insert(pushLogs).values({
-      id: crypto.randomUUID(),
-      requestId,
-      endpointId,
-      status: "success",
-      responseBody: "",
-    })
-
-    message.ack()
-  } catch (err) {
-    const reason = err instanceof Error ? err.message : String(err)
-    console.error("Channel send failed:", reason)
-
-    await db.insert(pushLogs).values({
-      id: crypto.randomUUID(),
-      requestId,
-      endpointId,
-      status: "failed",
-      responseBody: reason,
-    })
-
-    if (message.attempts < maxAttempts) {
-      message.retry({ delaySeconds: 5 })
-      return
-    }
-
-    message.ack()
+  } catch (error) {
+    sendError = error
   }
+
+  if (!sendError) {
+    await persistPushLog(db, { id: crypto.randomUUID(), requestId, endpointId, userId: endpoint.userId, status: "success", responseBody: "" })
+    message.ack()
+    return
+  }
+
+  const reason = sendError instanceof Error ? sendError.message : String(sendError)
+  await persistPushLog(db, { id: crypto.randomUUID(), requestId, endpointId, userId: endpoint.userId, status: "failed", responseBody: reason })
+  const maxAttempts = (endpoint.retryCount ?? 3) + 1
+  if (message.attempts < maxAttempts) {
+    message.retry({ delaySeconds: 5 })
+    return
+  }
+  message.ack()
 }
 
 export default {
   async queue(batch: MessageBatch<PushQueueMessage>, env: { DB: D1Database }) {
     const db = drizzle(env.DB, { schema })
     const cache = await caches.open("default")
-
-    for (const message of batch.messages) {
-      await handlePushMessage(db, cache, message)
-    }
+    for (const message of batch.messages) await handlePushMessage(db, cache, message)
   },
 }

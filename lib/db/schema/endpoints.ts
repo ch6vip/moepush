@@ -28,7 +28,7 @@ export const endpointsRelations = relations(endpoints, ({ one }) => ({
 }))
 
 export const insertEndpointSchema = createInsertSchema(endpoints).extend({
-  name: z.string().min(1, "名称不能为空").max(50, "名称不能超过50个字符"),
+  name: z.string().trim().min(1, "名称不能为空").max(50, "名称不能超过50个字符"),
   userId: z.string().optional(),
   id: z.string().optional(),
   channelId: z.string().min(1, "请选择推送渠道"),
@@ -37,7 +37,27 @@ export const insertEndpointSchema = createInsertSchema(endpoints).extend({
   retryCount: z.coerce.number().int().min(0).max(20).optional(),
 })
 
+export const createEndpointRequestSchema = z.object({
+  name: z.string().trim().min(1, "名称不能为空").max(50, "名称不能超过50个字符"),
+  channelId: z.string().min(1, "请选择推送渠道"),
+  rule: z.string().min(1, "消息模版不能为空"),
+  status: z.enum(["active", "inactive"]).optional(),
+  timeoutMs: z.coerce.number().int().min(1000).max(120000).optional(),
+  retryCount: z.coerce.number().int().min(0).max(20).optional(),
+}).strict()
+
+export const updateEndpointRequestSchema = z.object({
+  name: z.string().trim().min(1, "名称不能为空").max(50, "名称不能超过50个字符").optional(),
+  status: z.enum(["active", "inactive"]).optional(),
+  channelId: z.string().min(1, "请选择推送渠道").optional(),
+  rule: z.string().min(1, "消息模版不能为空").optional(),
+  timeoutMs: z.coerce.number().int().min(1000).max(120000).optional(),
+  retryCount: z.coerce.number().int().min(0).max(20).optional(),
+}).strict().refine((value) => Object.keys(value).length > 0, {
+  message: "请至少提供一个可更新字段",
+})
+
 export const selectEndpointSchema = createSelectSchema(endpoints)
 
 export type Endpoint = typeof endpoints.$inferSelect
-export type NewEndpoint = z.infer<typeof insertEndpointSchema> 
+export type NewEndpoint = z.infer<typeof insertEndpointSchema>

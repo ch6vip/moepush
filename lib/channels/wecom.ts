@@ -69,7 +69,6 @@ export class WecomChannel extends BaseChannel {
       throw new Error("缺少 Webhook 地址")
     }
     
-    console.log('sendWecomMessage message:', message)
 
     const response = await fetchWithTimeout(webhook, {
       method: 'POST',

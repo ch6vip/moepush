@@ -31,7 +31,6 @@ export class DiscordChannel extends BaseChannel {
       throw new Error("缺少 Discord Webhook 地址")
     }
     
-    console.log('sendDiscordMessage message:', message)
 
     const response = await fetchWithTimeout(webhook, {
       method: 'POST',

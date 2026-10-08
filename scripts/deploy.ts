@@ -7,18 +7,34 @@ const cloudflareApiToken = process.env.CLOUDFLARE_API_TOKEN;
 const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
 const projectName = process.env.PROJECT_NAME || 'moepush';
 
-const pagesEnv = process.env.CF_PAGES_ENV || 'preview'; // preview | production
-const pagesBranch =
-    process.env.CF_PAGES_BRANCH || (pagesEnv === 'production' ? 'main' : 'preview');
-// Cloudflare treats deployments to `production_branch` as Production; everything else is Preview.
-// If you don't want Production at all, set this to an unused branch name.
+const pagesEnv = process.env.CF_PAGES_ENV || 'preview';
+const pagesBranch = process.env.CF_PAGES_BRANCH || (pagesEnv === 'production' ? 'main' : 'preview');
 const pagesProductionBranch = process.env.CF_PAGES_PRODUCTION_BRANCH || 'production';
 const pagesOutputDir = path.resolve('.vercel/output/static');
+
+function assertDeploymentAllowed() {
+    if (pagesEnv === 'production') {
+        if (process.env.GITHUB_REF !== 'refs/heads/main' || pagesBranch !== 'main' || pagesProductionBranch !== 'main') {
+            throw new Error('Production deployment is allowed only from refs/heads/main.');
+        }
+    }
+
+    const required = [
+        ['AUTH_SECRET', process.env.AUTH_SECRET],
+        ['AUTH_GITHUB_ID', process.env.AUTH_GITHUB_ID],
+        ['AUTH_GITHUB_SECRET', process.env.AUTH_GITHUB_SECRET],
+        ['CLOUDFLARE_API_TOKEN', cloudflareApiToken],
+        ['CLOUDFLARE_ACCOUNT_ID', accountId],
+        ['D1_DATABASE_NAME', process.env.D1_DATABASE_NAME],
+    ];
+    const missing = required.filter(([, value]) => !value).map(([name]) => name);
+    if (missing.length) throw new Error(`Missing required deployment variables: ${missing.join(', ')}`);
+    if ((process.env.AUTH_SECRET?.length ?? 0) < 32) throw new Error('AUTH_SECRET must be at least 32 characters.');
+}
 
 const setupWranglerConfig = () => {
     const wranglerExamplePath = path.resolve('wrangler.example.json');
     const wranglerConfigPath = path.resolve('wrangler.json');
-
     const wranglerConfig = fs.readFileSync(wranglerExamplePath, 'utf-8');
     const json = JSON.parse(wranglerConfig);
     json.d1_databases[0].database_name = dbName;
@@ -27,13 +43,12 @@ const setupWranglerConfig = () => {
 };
 
 const checkAndCreateDatabase = () => {
-    let dbId;
-
+    let dbId: string | undefined;
     const getDatabaseId = () => {
         const dbList = execSync('pnpm wrangler d1 list --json').toString();
         const databases = JSON.parse(dbList);
-        return databases.find((db: any) => db.name === dbName)?.uuid;
-    }
+        return databases.find((db: any) => db.name === dbName)?.uuid as string | undefined;
+    };
 
     try {
         dbId = getDatabaseId();
@@ -45,9 +60,7 @@ const checkAndCreateDatabase = () => {
         console.log(`Creating new D1 database: ${dbName}`);
         execSync(`pnpm wrangler d1 create "${dbName}"`, { stdio: 'inherit' });
         dbId = getDatabaseId();
-        if (!dbId) {
-            throw new Error('Failed to create database');
-        }
+        if (!dbId) throw new Error('Failed to create database');
     } else {
         console.log(`Database ${dbName} already exists`);
     }
@@ -68,7 +81,7 @@ const createPagesSecret = () => {
         `AUTH_SECRET=${process.env.AUTH_SECRET}`,
         `AUTH_GITHUB_ID=${process.env.AUTH_GITHUB_ID}`,
         `AUTH_GITHUB_SECRET=${process.env.AUTH_GITHUB_SECRET}`,
-        `DISABLE_REGISTER=${process.env.DISABLE_REGISTER}`,
+        `DISABLE_REGISTER=${process.env.DISABLE_REGISTER ?? 'false'}`,
     ];
     fs.writeFileSync(envFilePath, envVariables.join('\n'));
     execSync(`pnpm wrangler pages secret bulk .env --project-name "${projectName}" --env "${pagesEnv}"`, { stdio: 'inherit' });
@@ -85,129 +98,64 @@ const deployPages = () => {
 };
 
 const checkProjectExists = async () => {
-    try {
-        const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/pages/projects/${projectName}`, {
-            method: 'GET',
-            headers: {
-                Authorization: `Bearer ${cloudflareApiToken}`,
-                'Content-Type': 'application/json',
-            },
-        });
-
-        if (!response.ok && response.status === 404) {
-            console.log(`Project ${projectName} does not exist. Creating...`);
-            await createProject();
-        } else {
-            const data = await response.json() as { success: boolean, result?: { production_branch?: string } };
-            if (!data.success) {
-                throw new Error('Failed to read project info');
-            }
-
-            const currentProductionBranch = data.result?.production_branch;
-            if (currentProductionBranch && currentProductionBranch !== pagesProductionBranch) {
-                console.log(`Updating Pages production_branch: ${currentProductionBranch} -> ${pagesProductionBranch}`);
-                await updateProject();
-            } else {
-                console.log(`Project ${projectName} already exists.`);
-            }
-        }
-    } catch (error) {
-        console.error('Error checking project existence:', error);
-        throw error;
+    const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/pages/projects/${projectName}`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${cloudflareApiToken}`, 'Content-Type': 'application/json' },
+    });
+    if (!response.ok && response.status === 404) {
+        await createProject();
+        return;
+    }
+    if (!response.ok) throw new Error(`Failed to read project info: ${response.status}`);
+    const data = await response.json() as { success: boolean; result?: { production_branch?: string } };
+    if (!data.success) throw new Error('Failed to read project info');
+    const currentProductionBranch = data.result?.production_branch;
+    if (currentProductionBranch && currentProductionBranch !== pagesProductionBranch) {
+        await updateProject();
     }
 };
 
 const updateProject = async () => {
-    const response = await fetch(
-        `https://api.cloudflare.com/client/v4/accounts/${accountId}/pages/projects/${projectName}`,
-        {
-            method: 'PATCH',
-            headers: {
-                Authorization: `Bearer ${cloudflareApiToken}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                production_branch: pagesProductionBranch,
-            }),
-        }
-    );
-
-    if (!response.ok) {
-        throw new Error(`Error updating project: ${response.status} ${response.statusText}`);
-    }
-
+    const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/pages/projects/${projectName}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${cloudflareApiToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ production_branch: pagesProductionBranch }),
+    });
+    if (!response.ok) throw new Error(`Error updating project: ${response.status}`);
     const data = await response.json() as { success: boolean };
-    if (!data.success) {
-        throw new Error('Failed to update project');
-    }
+    if (!data.success) throw new Error('Failed to update project');
 };
 
 const createProject = async () => {
-    try {
-        const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/pages/projects`, {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${cloudflareApiToken}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                name: projectName,
-                production_branch: pagesProductionBranch,
-            }),
-        });
-
-        if (!response.ok) {
-            throw new Error(`Error creating project: ${response.statusText}`);
-        }
-
-        const data = await response.json() as { success: boolean, result: { name: string } };
-        
-        if (!data.success) {
-            throw new Error('Failed to create project');
-        }
-
-        // 等待项目创建完成
-        await new Promise(resolve => setTimeout(resolve, 5000));
-        
-        // 验证项目是否真正创建成功
-        const verifyResponse = await fetch(
-            `https://api.cloudflare.com/client/v4/accounts/${accountId}/pages/projects/${projectName}`,
-            {
-                headers: {
-                    Authorization: `Bearer ${cloudflareApiToken}`,
-                    'Content-Type': 'application/json',
-                },
-            }
-        );
-
-        if (!verifyResponse.ok) {
-            throw new Error('Project creation verification failed');
-        }
-
-        const verifyData = await verifyResponse.json() as { success: boolean };
-        if (!verifyData.success) {
-            throw new Error('Project creation could not be verified');
-        }
-
-        console.log(`Project ${projectName} created and verified successfully`);
-    } catch (error) {
-        console.error('Error creating project:', error);
-        throw error;
-    }
+    const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/pages/projects`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${cloudflareApiToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: projectName, production_branch: pagesProductionBranch }),
+    });
+    if (!response.ok) throw new Error(`Error creating project: ${response.statusText}`);
+    const data = await response.json() as { success: boolean };
+    if (!data.success) throw new Error('Failed to create project');
+    await new Promise(resolve => setTimeout(resolve, 5000));
+    const verifyResponse = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/pages/projects/${projectName}`, {
+        headers: { Authorization: `Bearer ${cloudflareApiToken}`, 'Content-Type': 'application/json' },
+    });
+    if (!verifyResponse.ok) throw new Error('Project creation verification failed');
+    const verifyData = await verifyResponse.json() as { success: boolean };
+    if (!verifyData.success) throw new Error('Project creation could not be verified');
 };
 
 const main = async () => {
     try {
+        assertDeploymentAllowed();
         setupWranglerConfig();
         await checkProjectExists();
         checkAndCreateDatabase();
         applyMigrations();
         createPagesSecret();
         deployPages();
-
-        console.log('🎉 All deployment steps completed successfully!');
+        console.log('All deployment steps completed successfully!');
     } catch (error) {
-        console.error('❌ Deployment failed:', error);
+        console.error('Deployment failed:', error);
         process.exit(1);
     }
 };

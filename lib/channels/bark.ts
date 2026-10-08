@@ -217,7 +217,6 @@ export class BarkChannel extends BaseChannel {
       throw new Error("缺少 Bark 服务器地址")
     }
     
-    console.log('sendBarkMessage message:', message)
 
     // 准备POST请求的数据
     const postData: Record<string, any> = {
@@ -257,7 +256,6 @@ export class BarkChannel extends BaseChannel {
         timeout: options.timeoutMs ?? 8000,
       });
 
-      console.log('sendBarkMessage response status:', response.status);
       
       if (!response.ok) {
         const text = await response.text();
@@ -266,7 +264,6 @@ export class BarkChannel extends BaseChannel {
 
       return response;
     } catch (error) {
-      console.error('Bark 请求出错:', error);
       throw error;
     }
   }

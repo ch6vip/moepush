@@ -1,7 +1,8 @@
 import { auth } from "@/lib/auth"
 import { getDb } from "@/lib/db"
-import { channels, insertChannelSchema } from "@/lib/db/schema/channels"
+import { channels, createChannelRequestSchema, insertChannelSchema } from "@/lib/db/schema"
 import { generateId } from "@/lib/utils"
+import { readJsonBody, InvalidJsonBodyError } from "@/lib/security"
 import { eq } from "drizzle-orm"
 import { NextResponse } from "next/server"
 import { z } from "zod"
@@ -10,17 +11,14 @@ export const runtime = "edge"
 
 export async function GET() {
   try {
-    const db = await getDb()
     const session = await auth()
-    if (!session?.user) {
-      return new NextResponse("Unauthorized", { status: 401 })
-    }
-
+    const userId = session?.user?.id
+    if (!userId) return new NextResponse("Unauthorized", { status: 401 })
+    const db = await getDb()
     const channelList = await db.query.channels.findMany({
-      where: eq(channels.userId, session.user.id!),
-      orderBy: (channels, { desc }) => [desc(channels.createdAt)],
+      where: eq(channels.userId, userId),
+      orderBy: (channel, { desc }) => [desc(channel.createdAt)],
     })
-
     return NextResponse.json(channelList)
   } catch (error) {
     console.error("[CHANNELS_GET]", error)
@@ -28,41 +26,21 @@ export async function GET() {
   }
 }
 
-// 创建新渠道
 export async function POST(req: Request) {
   try {
-    const db = await getDb()
     const session = await auth()
-    if (!session?.user) {
-      return new NextResponse("Unauthorized", { status: 401 })
-    }
-
-    const json = await req.json() as {
-      name: string
-      type: string
-      webhook: string | null
-      secret: string | null
-      corpId: string | null
-      agentId: string | null
-    }
-
-    const body = insertChannelSchema.parse({
-      ...json,
-      id: generateId(),
-      userId: session.user.id!,
-      status: "active" as const,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    })
-
-    const channel = await db.insert(channels).values(body as any).returning()
-
-    return NextResponse.json(channel[0])
+    const userId = session?.user?.id
+    if (!userId) return new NextResponse("Unauthorized", { status: 401 })
+    const input = createChannelRequestSchema.parse(await readJsonBody(req))
+    const body = insertChannelSchema.parse(input)
+    const db = await getDb()
+    const [channel] = await db.insert(channels).values({ ...body, id: generateId(), userId, status: "active" }).returning()
+    return NextResponse.json(channel)
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return new NextResponse(error.message, { status: 400 })
+    if (error instanceof InvalidJsonBodyError || error instanceof z.ZodError) {
+      return new NextResponse(error instanceof z.ZodError ? error.message : "Invalid JSON body", { status: 400 })
     }
     console.error("[CHANNELS_POST]", error)
     return new NextResponse("Internal Error", { status: 500 })
   }
-} 
+}

@@ -155,6 +155,7 @@ export function EndpointGroupTable({ groups, availableEndpoints, onGroupsUpdate 
       <div className="flex justify-between">
         <div className="flex w-full max-w-sm items-center space-x-2">
           <Input
+            aria-label="搜索接口组"
             placeholder="搜索接口组名称..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -203,8 +204,8 @@ export function EndpointGroupTable({ groups, availableEndpoints, onGroupsUpdate 
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                          <MoreHorizontal className="h-4 w-4" />
+                        <Button variant="ghost" className="h-8 w-8 p-0" aria-label={`打开接口组操作菜单：${group.name}`}>
+                          <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
@@ -288,4 +289,4 @@ export function EndpointGroupTable({ groups, availableEndpoints, onGroupsUpdate 
       />
     </div>
   )
-} 
+}

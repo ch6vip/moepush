@@ -59,7 +59,6 @@ export class WecomAppChannel extends BaseChannel {
       throw new Error("缺少必要的配置信息")
     }
     
-    console.log('sendWecomAppMessage message:', message)
 
     const tokenResponse = await fetchWithTimeout(
       `https://qyapi.weixin.qq.com/cgi-bin/gettoken?corpid=${corpId}&corpsecret=${secret}`,

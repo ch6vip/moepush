@@ -56,7 +56,6 @@ export class WebhookChannel extends BaseChannel {
       throw new Error("缺少 Webhook 地址")
     }
 
-    console.log('sendWebhookMessage message:', message)
 
     const method = message.method === 'GET' ? 'GET' : 'POST'
     const headers = message.method === 'GET' ? message.headers : {
@@ -97,7 +96,6 @@ export class WebhookChannel extends BaseChannel {
 
       return response
     } catch (error) {
-      console.error('Webhook error:', error)
       throw error
     }
   }

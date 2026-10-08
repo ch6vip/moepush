@@ -1,0 +1,17 @@
+.git
+.next
+.vercel
+.wrangler
+node_modules
+.pnpm-store
+coverage
+playwright-report
+test-results
+__pycache__
+*.py[cod]
+*.log
+.env
+.env.*
+!.env.example
+.dev.vars
+wrangler.json

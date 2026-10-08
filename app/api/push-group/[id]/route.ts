@@ -1,94 +1,57 @@
-import { NextResponse } from 'next/server'
-import { getDb } from '@/lib/db'
-import { endpointGroups, endpointToGroup } from '@/lib/db/schema/endpoint-groups'
-import { eq } from 'drizzle-orm'
-import { generateId } from '@/lib/utils'
-import { executePush } from '@/lib/push/execute'
+import { NextResponse } from "next/server"
+import { auth } from "@/lib/auth"
+import { getDb } from "@/lib/db"
+import { endpointGroups, endpointToGroup } from "@/lib/db/schema/endpoint-groups"
+import { and, eq } from "drizzle-orm"
+import { generateId } from "@/lib/utils"
+import { executePush } from "@/lib/push/execute"
+import { InvalidJsonBodyError, readJsonBody } from "@/lib/security"
 
-export const runtime = 'edge'
+export const runtime = "edge"
 
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   let body: unknown
   try {
-    body = await request.json()
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    body = await readJsonBody(request)
+  } catch (error) {
+    if (error instanceof InvalidJsonBodyError) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
+    throw error
   }
 
   try {
+    const session = await auth()
+    const userId = session?.user?.id
+    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+    const { id } = await params
     const db = await getDb()
     const cache = await caches.open("default")
-
     const group = await db.query.endpointGroups.findFirst({
-      where: eq(endpointGroups.id, id),
+      where: and(eq(endpointGroups.id, id), eq(endpointGroups.userId, userId)),
     })
-
-    if (!group) {
-      return NextResponse.json(
-        { error: 'Group not found' },
-        { status: 404 }
-      )
-    }
-
-    if (group.status === "inactive") {
-      return NextResponse.json(
-        { error: 'Group is disabled' },
-        { status: 403 }
-      )
-    }
+    if (!group) return NextResponse.json({ error: "Group not found" }, { status: 404 })
+    if (group.status === "inactive") return NextResponse.json({ error: "Group is disabled" }, { status: 403 })
 
     const relations = await db.query.endpointToGroup.findMany({
       where: eq(endpointToGroup.groupId, id),
-      with: {
-        endpoint: true
-      }
+      with: { endpoint: true },
     })
+    const groupEndpoints = relations
+      .map((relation) => relation.endpoint)
+      .filter((endpoint) => endpoint && endpoint.userId === userId)
 
-    const groupEndpoints = relations.map((r: any) => r.endpoint)
+    if (groupEndpoints.length === 0) return NextResponse.json({ error: "Group has no endpoints" }, { status: 400 })
 
-    if (groupEndpoints.length === 0) {
-      return NextResponse.json(
-        { error: 'Group has no endpoints' },
-        { status: 400 }
-      )
-    }
+    const results = await Promise.allSettled(groupEndpoints.map(async (endpoint) => {
+      const requestId = generateId()
+      const result = await executePush({ db, cache, requestId, endpointId: endpoint.id, body })
+      return { endpointId: endpoint.id, name: endpoint.name, requestId, ok: result.ok, responseBody: result.responseBody }
+    }))
 
-    const results = await Promise.allSettled(
-      groupEndpoints.map(async (endpoint: any) => {
-        const requestId = generateId()
-        const r = await executePush({
-          db,
-          cache,
-          requestId,
-          endpointId: endpoint.id,
-          body,
-        })
-
-        return {
-          endpointId: endpoint.id,
-          name: endpoint.name,
-          requestId,
-          ok: r.ok,
-          responseBody: r.responseBody,
-        }
-      })
-    )
-
-    const fulfilled = results.filter((r) => r.status === "fulfilled") as Array<
-      PromiseFulfilledResult<{
-        endpointId: string
-        name: string
-        requestId: string
-        ok: boolean
-        responseBody: string | null
-      }>
-    >
-
-    const successCount = fulfilled.filter((r) => r.value.ok).length
+    const fulfilled = results.filter((result) => result.status === "fulfilled") as Array<PromiseFulfilledResult<{
+      endpointId: string; name: string; requestId: string; ok: boolean; responseBody: string | null
+    }>>
+    const successCount = fulfilled.filter((result) => result.value.ok).length
     const failedCount = groupEndpoints.length - successCount
 
     return NextResponse.json({
@@ -99,15 +62,15 @@ export async function POST(
       total: groupEndpoints.length,
       successCount,
       failedCount,
-      details: results.map((r, i) => {
-        const endpoint = groupEndpoints[i]
-        if (r.status === "fulfilled") {
+      details: results.map((result, index) => {
+        const endpoint = groupEndpoints[index]
+        if (result.status === "fulfilled") {
           return {
-            endpointId: r.value.endpointId,
+            endpointId: result.value.endpointId,
             endpoint: endpoint.name,
-            requestId: r.value.requestId,
-            status: r.value.ok ? "success" : "failed",
-            error: r.value.ok ? undefined : r.value.responseBody ?? "failed",
+            requestId: result.value.requestId,
+            status: result.value.ok ? "success" : "failed",
+            error: result.value.ok ? undefined : result.value.responseBody ?? "failed",
           }
         }
         return {
@@ -115,16 +78,12 @@ export async function POST(
           endpoint: endpoint.name,
           requestId: null,
           status: "failed",
-          error: r.reason instanceof Error ? r.reason.message : String(r.reason),
+          error: result.reason instanceof Error ? result.reason.message : String(result.reason),
         }
       }),
     })
-
   } catch (error) {
-    console.error('Push group error:', error)
-    return NextResponse.json(
-      { error: 'Failed to process group push' },
-      { status: 500 }
-    )
+    console.error("Push group error:", error)
+    return NextResponse.json({ error: "Failed to process group push" }, { status: 500 })
   }
-} 
+}

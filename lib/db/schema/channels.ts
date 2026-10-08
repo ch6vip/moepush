@@ -3,6 +3,7 @@ import { text, sqliteTable, index } from "drizzle-orm/sqlite-core"
 import { createInsertSchema, createSelectSchema } from "drizzle-zod"
 import { z } from "zod"
 import { CHANNEL_TYPES } from "../../channels/constants"
+import { isSafeHttpUrl } from "../../security"
 
 export const channels = sqliteTable("channels", {
   id: text("id").primaryKey(),
@@ -21,8 +22,9 @@ export const channels = sqliteTable("channels", {
   userIdIdx: index("channels_user_id_idx").on(table.userId),
 }))
 
-export const insertChannelSchema = createInsertSchema(channels).extend({
-  name: z.string().min(1, "名称不能为空").max(50, "名称不能超过50个字符"),
+const publicHttpUrl = (value: string) => isSafeHttpUrl(value)
+const channelConfigSchema = createInsertSchema(channels).extend({
+  name: z.string().trim().min(1, "名称不能为空").max(50, "名称不能超过50个字符"),
   type: z.nativeEnum(CHANNEL_TYPES),
   webhook: z.string().optional(),
   secret: z.string().optional(),
@@ -32,105 +34,63 @@ export const insertChannelSchema = createInsertSchema(channels).extend({
   id: z.string().optional(),
   botToken: z.string().optional(),
   chatId: z.string().optional(),
-}).refine((data) => {
-  if (data.type === CHANNEL_TYPES.WECOM_APP) {
-    return !!data.corpId
+})
+
+export const insertChannelSchema = channelConfigSchema
+  .refine((data) => data.type !== CHANNEL_TYPES.WECOM_APP || !!data.corpId, {
+    message: "企业微信应用必须提供企业ID", path: ["corpId"],
+  })
+  .refine((data) => data.type !== CHANNEL_TYPES.WECOM_APP || !!data.agentId, {
+    message: "企业微信应用必须提供应用ID", path: ["agentId"],
+  })
+  .refine((data) => data.type !== CHANNEL_TYPES.WECOM_APP || !!data.secret, {
+    message: "企业微信应用必须提供应用Secret", path: ["secret"],
+  })
+  .refine((data) => {
+    const webhookRequired = ![
+      CHANNEL_TYPES.WECOM_APP, CHANNEL_TYPES.TELEGRAM, CHANNEL_TYPES.FEISHU,
+      CHANNEL_TYPES.BARK, CHANNEL_TYPES.WEBHOOK,
+    ].includes(data.type as any)
+    return !webhookRequired || (!!data.webhook && publicHttpUrl(data.webhook))
+  }, { message: "请输入有效的公网 Webhook 地址", path: ["webhook"] })
+  .refine((data) => {
+    if (![CHANNEL_TYPES.WEBHOOK, CHANNEL_TYPES.FEISHU, CHANNEL_TYPES.BARK].includes(data.type as any)) return true
+    return !!data.webhook && publicHttpUrl(data.webhook)
+  }, { message: "请输入有效的公网 HTTP(S) 地址", path: ["webhook"] })
+  .refine((data) => data.type !== CHANNEL_TYPES.TELEGRAM || !!data.botToken, {
+    message: "Telegram 机器人必须提供 Bot Token", path: ["botToken"],
+  })
+  .refine((data) => data.type !== CHANNEL_TYPES.TELEGRAM || !!data.chatId, {
+    message: "Telegram 机器人必须提供 Chat ID", path: ["chatId"],
+  })
+
+export const createChannelRequestSchema = z.object({
+  name: z.string().trim().min(1, "名称不能为空").max(50, "名称不能超过50个字符"),
+  type: z.nativeEnum(CHANNEL_TYPES),
+  webhook: z.string().optional(),
+  secret: z.string().optional(),
+  corpId: z.string().optional(),
+  agentId: z.string().optional(),
+  botToken: z.string().optional(),
+  chatId: z.string().optional(),
+}).strict()
+
+export const updateChannelRequestSchema = z.object({
+  name: z.string().trim().min(1, "名称不能为空").max(50, "名称不能超过50个字符").optional(),
+  webhook: z.string().nullable().optional(),
+  secret: z.string().nullable().optional(),
+  corpId: z.string().nullable().optional(),
+  agentId: z.string().nullable().optional(),
+  botToken: z.string().nullable().optional(),
+  chatId: z.string().nullable().optional(),
+  status: z.enum(["active", "inactive"]).optional(),
+}).strict().superRefine((data, context) => {
+  if (data.webhook != null && !publicHttpUrl(data.webhook)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["webhook"], message: "请输入有效的公网 HTTP(S) 地址" })
   }
-  return true
-}, {
-  message: "企业微信应用必须提供企业ID",
-  path: ["corpId"],
-}).refine((data) => {
-  if (data.type === CHANNEL_TYPES.WECOM_APP) {
-    return !!data.agentId
-  }
-  return true
-}, {
-  message: "企业微信应用必须提供应用ID",
-  path: ["agentId"],
-}).refine((data) => {
-  if (data.type === CHANNEL_TYPES.WECOM_APP) {
-    return !!data.secret
-  }
-  return true
-}, {
-  message: "企业微信应用必须提供应用Secret",
-  path: ["secret"],
-}).refine((data) => {
-  if (![CHANNEL_TYPES.WECOM_APP, CHANNEL_TYPES.TELEGRAM, CHANNEL_TYPES.FEISHU, CHANNEL_TYPES.BARK, CHANNEL_TYPES.WEBHOOK].includes(data.type as any)) {
-    if (!data.webhook) return false
-    try {
-      new URL(data.webhook)
-      return true
-    } catch {
-      return false
-    }
-  }
-  return true
-}, {
-  message: "请输入有效的 Webhook 地址",
-  path: ["webhook"],
-}).refine((data) => {
-  if (data.type === CHANNEL_TYPES.WEBHOOK) {
-    if (!data.webhook) return false
-    try {
-      new URL(data.webhook)
-      return true
-    } catch {
-      return false
-    }
-  }
-  return true
-}, {
-  message: "通用 Webhook 必须提供有效的 URL 地址",
-  path: ["webhook"],
-}).refine((data) => {
-  if (data.type === CHANNEL_TYPES.FEISHU) {
-    if (!data.webhook) return false
-    try {
-      new URL(data.webhook)
-      return true
-    } catch {
-      return false
-    }
-  }
-  return true
-}, {
-  message: "飞书机器人必须提供有效的 Webhook 地址",
-  path: ["webhook"],
-}).refine((data) => {
-  if (data.type === CHANNEL_TYPES.BARK) {
-    if (!data.webhook) return false
-    try {
-      new URL(data.webhook)
-      return true
-    } catch {
-      return false
-    }
-  }
-  return true
-}, {
-  message: "Bark 必须提供有效的服务器地址",
-  path: ["webhook"],
-}).refine((data) => {
-  if (data.type === CHANNEL_TYPES.TELEGRAM) {
-    return !!data.botToken
-  }
-  return true
-}, {
-  message: "Telegram 机器人必须提供 Bot Token",
-  path: ["botToken"],
-}).refine((data) => {
-  if (data.type === CHANNEL_TYPES.TELEGRAM) {
-    return !!data.chatId
-  }
-  return true
-}, {
-  message: "Telegram 机器人必须提供 Chat ID",
-  path: ["chatId"],
 })
 
 export const selectChannelSchema = createSelectSchema(channels)
 
 export type Channel = typeof channels.$inferSelect
-export type ChannelFormData = z.infer<typeof insertChannelSchema> 
+export type ChannelFormData = z.infer<typeof insertChannelSchema>

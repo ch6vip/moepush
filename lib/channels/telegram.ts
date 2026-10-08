@@ -81,7 +81,6 @@ export class TelegramChannel extends BaseChannel {
       throw new Error("缺少 Bot Token 或 Chat ID")
     }
     
-    console.log('sendTelegramMessage message:', message)
 
     const response = await fetchWithTimeout(
       `https://api.telegram.org/bot${botToken}/sendMessage`,

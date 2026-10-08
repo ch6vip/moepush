@@ -13,7 +13,6 @@ import { CHANNEL_TYPES, type ChannelType } from "./constants"
 export { CHANNEL_TYPES }
 export type { ChannelType }
 
-// 注册所有渠道
 const channels: Record<ChannelType, BaseChannel> = {
   [CHANNEL_TYPES.DINGTALK]: new DingTalkChannel(),
   [CHANNEL_TYPES.WECOM]: new WecomChannel(),
@@ -25,38 +24,26 @@ const channels: Record<ChannelType, BaseChannel> = {
   [CHANNEL_TYPES.WEBHOOK]: new WebhookChannel(),
 }
 
-// 获取所有渠道标签
 export const CHANNEL_LABELS: Record<ChannelType, string> = Object.entries(channels).reduce(
-  (acc, [type, channel]) => ({
-    ...acc,
-    [type]: channel.getLabel(),
-  }),
-  {} as Record<ChannelType, string>
+  (acc, [type, channel]) => ({ ...acc, [type]: channel.getLabel() }),
+  {} as Record<ChannelType, string>,
 )
 
-// 获取所有渠道模板
 export const CHANNEL_TEMPLATES = Object.entries(channels).reduce(
-  (acc, [type, channel]) => ({
-    ...acc,
-    [type]: channel.getTemplates(),
-  }),
-  {} as Record<ChannelType, any[]>
+  (acc, [type, channel]) => ({ ...acc, [type]: channel.getTemplates() }),
+  {} as Record<ChannelType, any[]>,
 )
 
-// 获取指定渠道
 export function getChannel(type: ChannelType): BaseChannel {
   return channels[type]
 }
 
-// 发送消息
-export async function sendChannelMessage(
-  type: ChannelType, 
-  message: any, 
-  options: any
-): Promise<Response> {
-  const channel = getChannel(type)
-  return channel.sendMessage(message, options)
+export async function sendChannelMessage(type: ChannelType, message: any, options: any): Promise<Response> {
+  const response = await getChannel(type).sendMessage(message, options)
+  // Consume the entire body before the timeout is released by fetchWithTimeout.
+  // Callers only need the success result; channel implementations inspect error bodies themselves.
+  if (response.body && !response.bodyUsed) await response.arrayBuffer()
+  return response
 }
 
-// 导出渠道接口
 export type Channel = DBInferChannel & { type: ChannelType }

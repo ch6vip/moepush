@@ -98,6 +98,7 @@ export function ChannelTable({ channels }: ChannelTableProps) {
       <div className="flex justify-between">
         <div className="flex w-full max-w-sm items-center space-x-2">
           <Input
+            aria-label="搜索渠道"
             placeholder="搜索渠道的名称、链接或备注..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -141,8 +142,8 @@ export function ChannelTable({ channels }: ChannelTableProps) {
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                          <MoreHorizontal className="h-4 w-4" />
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label={`打开渠道操作菜单：${channel.name}`}>
+                          <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
@@ -190,4 +191,4 @@ export function ChannelTable({ channels }: ChannelTableProps) {
       </AlertDialog>
     </div>
   )
-} 
+}

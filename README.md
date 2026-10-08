@@ -95,10 +95,7 @@ https://www.bilibili.com/video/BV1dtZBYnEUX/?p=2
 
 ### GitHub Actions 自动部署
 
-项目已配置 GitHub Actions 用于自动部署, 可以通过两种方式进行触发：
-
-- 推送新的 tag（格式：`v*`）会触发自动部署。例如：`git tag v1.0.0 && git push origin v1.0.0`
-- 手动触发工作流。前往 [Actions](https://github.com/beilunyang/moepush/actions) 页面，点击 `Deploy` 工作流，点击 `Run workflow` 按钮即可。
+项目配置了 GitHub Actions：推送到 `main` 会验证并部署；手动触发也只有选择 `main` 分支才会进入生产部署 job。请在 GitHub 仓库中创建 `production` Environment，限制可部署分支为 `main`，并按团队策略设置 reviewer 审批。
 
 ### 部署前需要在 GitHub 仓库设置中添加以下 Secrets：
 - `CLOUDFLARE_API_TOKEN`：Cloudflare API Token
@@ -110,11 +107,19 @@ https://www.bilibili.com/video/BV1dtZBYnEUX/?p=2
 - `PROJECT_NAME`：项目名称 (可选，默认：moepush)
 - `DISABLE_REGISTER`：是否禁止注册，默认关闭，设置为 `true` 则禁止注册
 
-### 使用 Docker 部署
+### 使用 Docker 本地运行 Cloudflare Pages/D1
+
+该镜像通过 Wrangler Pages runtime 提供 Cloudflare 请求上下文，并使用本地 D1 数据库；它不是普通 `next start` 容器，也不会自动连接远程 D1。生产环境仍建议使用 Cloudflare Pages 工作流。
 
 ```bash
-docker pull beilunyang/moepush
-docker run -d -p 3000:3000 -v $(pwd)/.wrangler:/app/.wrangler -e AUTH_SECRET=<你的AUTH_SECRET> -e AUTH_GITHUB_ID=<你的AUTH_GITHUB_ID> -e AUTH_GITHUB_SECRET=<你的AUTH_GITHUB_SECRET> moepush
+docker build -t moepush .
+docker run --rm -p 3000:3000 \
+  -v "$(pwd)/.wrangler:/app/.wrangler" \
+  -e AUTH_SECRET=<你的AUTH_SECRET> \
+  -e AUTH_GITHUB_ID=<你的AUTH_GITHUB_ID> \
+  -e AUTH_GITHUB_SECRET=<你的AUTH_GITHUB_SECRET> \
+  -e DISABLE_REGISTER=false \
+  moepush
 ```
 
 ## 贡献

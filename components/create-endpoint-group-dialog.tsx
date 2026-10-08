@@ -19,7 +19,7 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Plus, Loader2 } from "lucide-react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useId } from "react"
 import type { ReactNode } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -56,6 +56,7 @@ export function EndpointGroupDialog({
   const [open, setOpen] = useState(false)
   const [isPending, setIsPending] = useState(false)
   const { toast } = useToast()
+  const checkboxIdPrefix = useId()
 
   const form = useForm<EndpointGroupFormValues>({
     resolver: zodResolver(endpointGroupSchema),
@@ -176,18 +177,23 @@ export function EndpointGroupDialog({
                             暂无可用接口，请先创建推送接口
                           </div>
                         ) : (
-                          availableEndpoints.map(endpoint => (
-                            <div key={endpoint.id} className="flex items-center space-x-3 rounded-md border p-3 hover:bg-accent transition-colors">
-                              <Checkbox
-                                checked={field.value.includes(endpoint.id)}
-                                onCheckedChange={() => toggleEndpoint(endpoint.id)}
-                              />
-                              <div className="flex-1">
-                                <div className="font-medium">{endpoint.name}</div>
-                                <div className="text-xs text-muted-foreground font-mono">{endpoint.id}</div>
+                          availableEndpoints.map(endpoint => {
+                            const checkboxId = `${checkboxIdPrefix}-${endpoint.id.replace(/[^a-zA-Z0-9_-]/g, "-")}`
+                            return (
+                              <div key={endpoint.id} className="flex items-center space-x-3 rounded-md border p-3 transition-colors hover:bg-accent">
+                                <Checkbox
+                                  id={checkboxId}
+                                  aria-labelledby={`${checkboxId}-label`}
+                                  checked={field.value.includes(endpoint.id)}
+                                  onCheckedChange={() => toggleEndpoint(endpoint.id)}
+                                />
+                                <label id={`${checkboxId}-label`} htmlFor={checkboxId} className="flex-1 cursor-pointer">
+                                  <div className="font-medium">{endpoint.name}</div>
+                                  <div className="font-mono text-xs text-muted-foreground">{endpoint.id}</div>
+                                </label>
                               </div>
-                            </div>
-                          ))
+                            )
+                          })
                         )}
                       </div>
                     </div>

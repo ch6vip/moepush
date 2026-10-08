@@ -76,6 +76,7 @@ export function EndpointTable({ endpoints, channels, onEndpointsUpdate }: Endpoi
       <div className="flex justify-between">
         <div className="flex w-full max-w-sm items-center space-x-2">
           <Input
+            aria-label="搜索接口"
             placeholder="搜索接口的名称、内容或备注..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -115,7 +116,7 @@ export function EndpointTable({ endpoints, channels, onEndpointsUpdate }: Endpoi
                     <TableCell>{channel?.name}</TableCell>
                     <TableCell>
                       <Popover>
-                        <PopoverTrigger className="text-left">
+                        <PopoverTrigger className="text-left" aria-label={`查看接口模板：${endpoint.name}`}>
                           <code className="font-mono text-sm max-w-[200px] truncate block hover:text-blue-500">
                             {endpoint.rule}
                           </code>
@@ -136,8 +137,8 @@ export function EndpointTable({ endpoints, channels, onEndpointsUpdate }: Endpoi
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                            <MoreHorizontal className="h-4 w-4" />
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label={`打开接口操作菜单：${endpoint.name}`}>
+                            <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">

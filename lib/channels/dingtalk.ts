@@ -135,8 +135,6 @@ export class DingTalkChannel extends BaseChannel {
         url = urlObj.toString()
       }
 
-      console.log('Sending DingTalk message to:', url)
-      console.log('Message:', message)
 
       const response = await fetchWithTimeout(url, {
         method: 'POST',
@@ -154,7 +152,6 @@ export class DingTalkChannel extends BaseChannel {
 
       return response
     } catch (error) {
-      console.error('DingTalk error:', error)
       throw error
     }
   }
